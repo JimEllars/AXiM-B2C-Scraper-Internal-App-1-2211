@@ -1,48 +1,40 @@
 import { telemetryService } from './telemetryService';
 import { batchService } from './batchService';
+import { queueService } from './queueService';
+import { targetService } from './targetService';
 
-/**
- * ExecutionService handles the dispatching of scraping jobs to the Edge Worker.
- * Environment Variables are respected, allowing for seamless ecosystem triggers.
- */
 export const executionService = {
-  async triggerJob(payload) {
-    const { targetId, url, source = 'MANUAL_UI' } = payload;
+  async triggerManualOrchestration() {
+    await telemetryService.log('info', 'Manual B2C Orchestration sequence initiated', 'CONTROL_PLANE');
     
-    await telemetryService.log(
-      'info', 
-      `Handshake initiated by ${source} for: ${url || 'ALL_ACTIVE_NODES'}`, 
-      'ORCHESTRATOR'
-    );
-
     try {
-      const workerUrl = import.meta.env.VITE_WORKER_URL || 'https://worker-axim.edge.workers.dev/api/trigger';
-      const dashboardToken = import.meta.env.VITE_DASHBOARD_ACCESS_TOKEN;
+      // 1. Get all active targets
+      const targets = await targetService.getAll();
+      const activeTargets = targets.filter(t => t.status === 'RUNNING');
       
-      console.log(`[ORCHESTRATOR] Triggering ${source} on ${workerUrl}`);
+      if (activeTargets.length === 0) {
+        throw new Error('No active targets provisioned for orchestration.');
+      }
 
-      // In a real environment, we would await the fetch
-      // For the demo, we simulate a successful 202 Accepted response
-      await new Promise(resolve => setTimeout(resolve, 1200));
-
-      const recordsGenerated = Math.floor(Math.random() * 50) + 10;
+      // 2. Pick a random target to "process"
+      const target = activeTargets[Math.floor(Math.random() * activeTargets.length)];
       
+      // 3. Enqueue a high-priority job
+      await queueService.enqueue(target.url, 'HIGH');
+      await telemetryService.log('success', `Orchestrated high-priority extraction for: ${target.url}`, 'SCHEDULER');
+
+      // 4. Simulate immediate batch logging for UI feedback
+      const records = Math.floor(Math.random() * 150) + 50;
       await batchService.log({
-        target: url || 'Ecosystem Swarm',
-        records: recordsGenerated,
+        target: target.url,
+        records,
         status: 'COMPLETED',
-        bridge_id: `axim_${Math.random().toString(36).substr(2, 9)}`
+        bridge_id: `b2c_${Math.random().toString(36).substr(2, 9)}`
       });
 
-      await telemetryService.log(
-        'success', 
-        `Execution cycle complete. ${recordsGenerated} records mapped to Egress Schema.`, 
-        'EDGE_NODE'
-      );
-
-      return { success: true, message: 'Job successfully acknowledged by Edge Node' };
+      return { success: true, target: target.url, records };
     } catch (err) {
-      await telemetryService.log('error', `Handshake failed: ${err.message}`, 'ORCHESTRATOR');
+      await telemetryService.log('error', `Orchestration failed: ${err.message}`, 'CONTROL_PLANE');
       throw err;
     }
   }

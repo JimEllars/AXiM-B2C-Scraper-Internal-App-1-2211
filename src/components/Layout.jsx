@@ -11,6 +11,7 @@ import ProxyManager from './ProxyManager';
 import NotificationTray from './NotificationTray';
 import QueueManager from './QueueManager';
 import DataExplorer from './DataExplorer';
+import EnrichmentCenter from './EnrichmentCenter';
 
 export default function Layout() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -30,6 +31,7 @@ export default function Layout() {
     switch (activeTab) {
       case 'dashboard': return <Dashboard />;
       case 'targets': return <TargetManager />;
+      case 'enrichment': return <EnrichmentCenter />;
       case 'queue': return <QueueManager />;
       case 'explorer': return <DataExplorer />;
       case 'proxies': return <ProxyManager />;
@@ -38,7 +40,7 @@ export default function Layout() {
       case 'telemetry': return <TelemetryStream />;
       case 'audit': return <AuditLog />;
       case 'settings': return <Settings />;
-      default: return <div className="flex items-center justify-center h-full text-gray-500">Module Configuration Pending...</div>;
+      default: return <div className="flex items-center justify-center h-full text-gray-500 font-mono text-xs">MODULE_PENDING_PROVISIONING</div>;
     }
   };
 

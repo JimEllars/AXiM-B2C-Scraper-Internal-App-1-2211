@@ -1,19 +1,19 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
-import { FiActivity, FiServer, FiSettings, FiDatabase, FiShield, FiList, FiCode, FiFileText, FiZap, FiLayers, FiSearch } from 'react-icons/fi';
+import { FiActivity, FiServer, FiSettings, FiDatabase, FiShield, FiList, FiCode, FiFileText, FiZap, FiLayers, FiSearch, FiUserPlus } from 'react-icons/fi';
 
 export default function Sidebar({ activeTab, setActiveTab }) {
   const navItems = [
-    { id: 'dashboard', label: 'Overview', icon: FiActivity },
-    { id: 'targets', label: 'Targets', icon: FiServer },
-    { id: 'queue', label: 'Job Queue', icon: FiLayers },
+    { id: 'dashboard', label: 'Command Center', icon: FiActivity },
+    { id: 'targets', label: 'B2C Targets', icon: FiServer },
+    { id: 'enrichment', label: 'Enrichment Hub', icon: FiUserPlus },
+    { id: 'queue', label: 'Active Queue', icon: FiLayers },
     { id: 'explorer', label: 'Data Egress', icon: FiSearch },
     { id: 'proxies', label: 'Proxy Swarm', icon: FiZap },
     { id: 'history', label: 'Batch Ledger', icon: FiList },
-    { id: 'telemetry', label: 'Telemetry', icon: FiShield },
-    { id: 'audit', label: 'Audit Trail', icon: FiFileText },
-    { id: 'settings', label: 'Config', icon: FiSettings },
+    { id: 'telemetry', label: 'Node Health', icon: FiShield },
+    { id: 'settings', label: 'System Config', icon: FiSettings },
   ];
 
   return (
@@ -25,7 +25,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
           </div>
           <div>
             <h1 className="text-sm font-bold tracking-widest text-white uppercase">AXiM Onyx</h1>
-            <p className="text-[10px] text-gray-400 font-mono">NODE MK3</p>
+            <p className="text-[10px] text-gray-400 font-mono">B2C SCAPER MK3</p>
           </div>
         </div>
       </div>
@@ -53,7 +53,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
       <div className="p-4 border-t border-gray-800">
         <div className="flex items-center space-x-3 px-4 py-3 bg-gray-900/50 rounded-lg border border-gray-800">
           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs font-mono text-gray-300 uppercase tracking-tighter truncate">ONYX_MK3_EDGE_01</span>
+          <span className="text-xs font-mono text-gray-300 uppercase tracking-tighter truncate">EDGE_ONYX_NODE_01</span>
         </div>
       </div>
     </div>

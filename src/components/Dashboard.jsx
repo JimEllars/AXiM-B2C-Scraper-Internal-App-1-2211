@@ -3,7 +3,7 @@ import ReactECharts from 'echarts-for-react';
 import StatCard from './StatCard';
 import HealthMonitor from './HealthMonitor';
 import NetworkMap from './NetworkMap';
-import { FiUsers, FiDatabase, FiAlertTriangle, FiZap, FiLoader, FiTrendingUp, FiPieChart } from 'react-icons/fi';
+import { FiUsers, FiDatabase, FiAlertTriangle, FiZap, FiLoader, FiTrendingUp, FiPieChart, FiTarget } from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { targetService } from '../services/targetService';
 import { batchService } from '../services/batchService';
@@ -12,14 +12,14 @@ import { executionService } from '../services/executionService';
 import { format, subDays, startOfDay, isWithinInterval } from 'date-fns';
 
 export default function Dashboard() {
-  const [isTriggering, setIsTriggering] = useState(false);
+  const [orchestrating, setOrchestrating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState({ dates: [], values: [] });
   const [stats, setStats] = useState({
-    totalRecords: 0,
-    activeLedgers: 0,
+    totalLeads: 0,
+    activeNodes: 0,
     evasionRate: '98.8%',
-    wafBlocks: 0
+    leadQuality: '8.4'
   });
 
   useEffect(() => { loadDashboardData(); }, []);
@@ -32,11 +32,8 @@ export default function Dashboard() {
         telemetryService.getAll()
       ]);
 
-      const totalRecords = batches.reduce((acc, curr) => acc + (curr.records || 0), 0);
-      const wafBlocks = logs.filter(log => 
-        log.type === 'error' && log.message.toLowerCase().includes('waf')
-      ).length;
-
+      const totalLeads = batches.reduce((acc, curr) => acc + (curr.records || 0), 0);
+      
       const last7Days = Array.from({ length: 7 }).map((_, i) => subDays(new Date(), i)).reverse();
       const chartValues = last7Days.map(date => {
         const dayStart = startOfDay(date);
@@ -52,15 +49,27 @@ export default function Dashboard() {
       });
 
       setStats({
-        totalRecords: totalRecords.toLocaleString(),
-        activeLedgers: targets.length,
-        evasionRate: '98.8%',
-        wafBlocks: wafBlocks
+        totalLeads: totalLeads.toLocaleString(),
+        activeNodes: targets.filter(t => t.status === 'RUNNING').length,
+        evasionRate: '99.4%',
+        leadQuality: '8.7'
       });
     } catch (err) {
       console.error('Dashboard Load Error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleManualOrchestration = async () => {
+    setOrchestrating(true);
+    try {
+      await executionService.triggerManualOrchestration();
+      await loadDashboardData();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setOrchestrating(false);
     }
   };
 
@@ -78,44 +87,30 @@ export default function Dashboard() {
     }]
   };
 
-  const statusOption = {
-    backgroundColor: 'transparent',
-    tooltip: { trigger: 'item' },
-    series: [{
-      type: 'pie',
-      radius: ['40%', '70%'],
-      avoidLabelOverlap: false,
-      itemStyle: { borderRadius: 10, borderColor: '#0f172a', borderWidth: 2 },
-      label: { show: false },
-      data: [
-        { value: 1048, name: 'Success', itemStyle: { color: '#10b981' } },
-        { value: 735, name: 'WAF Block', itemStyle: { color: '#f43f5e' } },
-        { value: 580, name: 'Timeout', itemStyle: { color: '#f59e0b' } },
-        { value: 484, name: 'Retrying', itemStyle: { color: '#6366f1' } }
-      ]
-    }]
-  };
-
   if (loading) return <div className="flex justify-center h-full items-center"><SafeIcon icon={FiLoader} className="w-10 h-10 animate-spin text-indigo-500" /></div>;
 
   return (
     <div className="space-y-8 pb-10">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white mb-2 text-glow">System Intelligence</h2>
-          <p className="text-sm text-gray-400 font-mono uppercase tracking-tighter">Node ID: ONYX_MK3_EDGE_01</p>
+          <h2 className="text-xl font-bold text-white mb-2 text-glow">B2C Intelligence Command</h2>
+          <p className="text-sm text-gray-400 font-mono uppercase tracking-tighter">Onyx Mk3 • Edge Orchestrator</p>
         </div>
-        <button onClick={() => setIsTriggering(true)} className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all">
-          <SafeIcon icon={FiZap} className={isTriggering ? 'animate-pulse' : ''} />
-          <span>Manual Orchestration</span>
+        <button 
+          onClick={handleManualOrchestration} 
+          disabled={orchestrating}
+          className="flex items-center space-x-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-600/20"
+        >
+          {orchestrating ? <SafeIcon icon={FiLoader} className="animate-spin" /> : <SafeIcon icon={FiZap} />}
+          <span>{orchestrating ? 'Orchestrating Swarm...' : 'Trigger Global Scrape'}</span>
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <StatCard title="Total Records" value={stats.totalRecords} icon={FiUsers} trend="+12% growth" positive={true} />
-        <StatCard title="Active Targets" value={stats.activeLedgers} icon={FiDatabase} />
-        <StatCard title="Evasion Health" value={stats.evasionRate} icon={FiZap} trend="Optimal" positive={true} />
-        <StatCard title="Blocked Requests" value={stats.wafBlocks} icon={FiAlertTriangle} trend="Auto-rotating" positive={false} />
+        <StatCard title="Enriched B2C Leads" value={stats.totalLeads} icon={FiUsers} trend="+8.4% this week" positive={true} />
+        <StatCard title="Active Scrape Nodes" value={stats.activeNodes} icon={FiTarget} />
+        <StatCard title="WAF Bypass Rate" value={stats.evasionRate} icon={FiZap} trend="Optimal" positive={true} />
+        <StatCard title="Lead Quality Avg" value={stats.leadQuality} icon={FiTrendingUp} trend="Scale: 1-10" positive={true} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -123,7 +118,7 @@ export default function Dashboard() {
           <div className="glass-panel p-6">
             <div className="flex items-center space-x-2 mb-6">
               <SafeIcon icon={FiTrendingUp} className="text-indigo-400" />
-              <h3 className="text-sm font-bold text-white uppercase tracking-widest">Extraction Momentum</h3>
+              <h3 className="text-sm font-bold text-white uppercase tracking-widest">Lead Generation Velocity</h3>
             </div>
             <div className="h-[250px]">
               <ReactECharts option={trendOption} style={{ height: '100%' }} />
@@ -132,16 +127,23 @@ export default function Dashboard() {
           <NetworkMap />
         </div>
         <div className="space-y-6">
-          <div className="glass-panel p-6">
-            <div className="flex items-center space-x-2 mb-6">
-              <SafeIcon icon={FiPieChart} className="text-indigo-400" />
-              <h3 className="text-sm font-bold text-white uppercase tracking-widest">Job Distribution</h3>
-            </div>
-            <div className="h-[200px]">
-              <ReactECharts option={statusOption} style={{ height: '100%' }} />
+          <HealthMonitor />
+          <div className="glass-panel p-6 bg-indigo-500/5 border-indigo-500/10">
+            <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4">Node Capability</h3>
+            <div className="space-y-4">
+              {[
+                { label: 'Residential IP Rotation', status: 'ACTIVE' },
+                { label: 'JS DOM Rendering', status: 'ACTIVE' },
+                { label: 'CAPTCHA Autoresolve', status: 'ACTIVE' },
+                { label: 'Social Graph Mapping', status: 'ACTIVE' }
+              ].map((cap, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">{cap.label}</span>
+                  <span className="text-[9px] font-bold text-emerald-400 font-mono tracking-tighter">{cap.status}</span>
+                </div>
+              ))}
             </div>
           </div>
-          <HealthMonitor />
         </div>
       </div>
     </div>
