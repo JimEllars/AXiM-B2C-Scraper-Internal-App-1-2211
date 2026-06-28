@@ -1,0 +1,23 @@
+name = "axim-b2c-scraper-node"
+main = "src/index.js"
+compatibility_date = "2026-06-27"
+workers_dev = false
+
+# Phase II: State Management Ledger Binding
+[[kv_namespaces]]
+binding = "B2C_SCRAPER_STATE"
+id = "YOUR_KV_NAMESPACE_ID_HERE"
+preview_id = "YOUR_KV_PREVIEW_ID_HERE"
+
+# Plaintext Environment Variables
+[vars]
+ENVIRONMENT = "production"
+ENRICHMENT_BRIDGE_URL = "https://api.axim.us.com/v1/webhooks/enrich"
+TELEMETRY_ENDPOINT = "https://api.axim.us.com/v1/telemetry/collect"
+TARGET_BATCH_SIZE = "100"
+MAX_EXECUTION_TIME_MS = "25000"
+
+# Phase III: Autonomous Execution Schedule (Cron Triggers)
+[triggers]
+# Runs at minute 0 past every 4th hour (e.g., 00:00, 04:00, 08:00...)
+crons = ["0 */4 * * *"]
