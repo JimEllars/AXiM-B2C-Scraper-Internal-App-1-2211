@@ -3,7 +3,7 @@ import ReactECharts from 'echarts-for-react';
 import StatCard from './StatCard';
 import HealthMonitor from './HealthMonitor';
 import NetworkMap from './NetworkMap';
-import { FiUsers, FiDatabase, FiAlertTriangle, FiZap, FiLoader, FiClock, FiActivity, FiTrendingUp } from 'react-icons/fi';
+import { FiUsers, FiDatabase, FiAlertTriangle, FiZap, FiLoader, FiTrendingUp, FiPieChart } from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { targetService } from '../services/targetService';
 import { batchService } from '../services/batchService';
@@ -22,9 +22,7 @@ export default function Dashboard() {
     wafBlocks: 0
   });
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+  useEffect(() => { loadDashboardData(); }, []);
 
   const loadDashboardData = async () => {
     try {
@@ -66,54 +64,35 @@ export default function Dashboard() {
     }
   };
 
-  const handleManualTrigger = async () => {
-    setIsTriggering(true);
-    try {
-      await executionService.triggerJob({ source: 'MANUAL_DASHBOARD' });
-      setTimeout(loadDashboardData, 2000);
-    } catch (err) {
-      console.error('Trigger failed', err);
-    } finally {
-      setIsTriggering(false);
-    }
-  };
-
-  const chartOption = {
+  const trendOption = {
     backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: '#0f172a',
-      borderColor: '#1e293b',
-      textStyle: { color: '#94a3b8', fontSize: 12 },
-    },
-    grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
-    xAxis: {
-      type: 'category',
-      data: chartData.dates,
-      axisLine: { lineStyle: { color: '#334155' } },
-      axisLabel: { color: '#64748b' }
-    },
-    yAxis: {
-      type: 'value',
-      splitLine: { lineStyle: { color: 'rgba(51, 65, 85, 0.3)' } },
-      axisLabel: { color: '#64748b' }
-    },
+    tooltip: { trigger: 'axis', backgroundColor: '#0f172a', borderColor: '#1e293b', textStyle: { color: '#94a3b8' } },
+    xAxis: { type: 'category', data: chartData.dates, axisLine: { lineStyle: { color: '#334155' } } },
+    yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(51, 65, 85, 0.2)' } } },
     series: [{
       data: chartData.values,
       type: 'line',
       smooth: true,
-      symbol: 'none',
-      lineStyle: { color: '#6366f1', width: 3 },
-      areaStyle: {
-        color: {
-          type: 'linear',
-          x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [
-            { offset: 0, color: 'rgba(99, 102, 241, 0.3)' },
-            { offset: 1, color: 'rgba(99, 102, 241, 0)' }
-          ]
-        }
-      }
+      lineStyle: { color: '#6366f1', width: 2 },
+      areaStyle: { color: 'rgba(99, 102, 241, 0.1)' }
+    }]
+  };
+
+  const statusOption = {
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'item' },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 10, borderColor: '#0f172a', borderWidth: 2 },
+      label: { show: false },
+      data: [
+        { value: 1048, name: 'Success', itemStyle: { color: '#10b981' } },
+        { value: 735, name: 'WAF Block', itemStyle: { color: '#f43f5e' } },
+        { value: 580, name: 'Timeout', itemStyle: { color: '#f59e0b' } },
+        { value: 484, name: 'Retrying', itemStyle: { color: '#6366f1' } }
+      ]
     }]
   };
 
@@ -123,26 +102,20 @@ export default function Dashboard() {
     <div className="space-y-8 pb-10">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white mb-2">Ecosystem Intelligence</h2>
+          <h2 className="text-xl font-bold text-white mb-2 text-glow">System Intelligence</h2>
           <p className="text-sm text-gray-400 font-mono uppercase tracking-tighter">Node ID: ONYX_MK3_EDGE_01</p>
         </div>
-        <div className="flex space-x-2">
-          <button 
-            onClick={handleManualTrigger}
-            disabled={isTriggering}
-            className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-          >
-            <SafeIcon icon={FiZap} className={isTriggering ? 'animate-pulse' : ''} />
-            <span>{isTriggering ? 'Executing Swarm...' : 'Manual Trigger'}</span>
-          </button>
-        </div>
+        <button onClick={() => setIsTriggering(true)} className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all">
+          <SafeIcon icon={FiZap} className={isTriggering ? 'animate-pulse' : ''} />
+          <span>Manual Orchestration</span>
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Records Egressed" value={stats.totalRecords} icon={FiUsers} trend="+12% vs last week" positive={true} />
-        <StatCard title="Active KV Ledgers" value={stats.activeLedgers} icon={FiDatabase} />
-        <StatCard title="Proxy Evasion Rate" value={stats.evasionRate} icon={FiZap} trend="Sticky sessions active" positive={true} />
-        <StatCard title="WAF Blocks (Total)" value={stats.wafBlocks} icon={FiAlertTriangle} trend="Auto-rotating IPs" positive={false} />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <StatCard title="Total Records" value={stats.totalRecords} icon={FiUsers} trend="+12% growth" positive={true} />
+        <StatCard title="Active Targets" value={stats.activeLedgers} icon={FiDatabase} />
+        <StatCard title="Evasion Health" value={stats.evasionRate} icon={FiZap} trend="Optimal" positive={true} />
+        <StatCard title="Blocked Requests" value={stats.wafBlocks} icon={FiAlertTriangle} trend="Auto-rotating" positive={false} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -150,15 +123,24 @@ export default function Dashboard() {
           <div className="glass-panel p-6">
             <div className="flex items-center space-x-2 mb-6">
               <SafeIcon icon={FiTrendingUp} className="text-indigo-400" />
-              <h3 className="text-sm font-bold text-white uppercase tracking-widest">Extraction Trends</h3>
+              <h3 className="text-sm font-bold text-white uppercase tracking-widest">Extraction Momentum</h3>
             </div>
-            <div className="h-[280px]">
-              <ReactECharts option={chartOption} style={{ height: '100%', width: '100%' }} />
+            <div className="h-[250px]">
+              <ReactECharts option={trendOption} style={{ height: '100%' }} />
             </div>
           </div>
           <NetworkMap />
         </div>
-        <div className="lg:col-span-1">
+        <div className="space-y-6">
+          <div className="glass-panel p-6">
+            <div className="flex items-center space-x-2 mb-6">
+              <SafeIcon icon={FiPieChart} className="text-indigo-400" />
+              <h3 className="text-sm font-bold text-white uppercase tracking-widest">Job Distribution</h3>
+            </div>
+            <div className="h-[200px]">
+              <ReactECharts option={statusOption} style={{ height: '100%' }} />
+            </div>
+          </div>
           <HealthMonitor />
         </div>
       </div>

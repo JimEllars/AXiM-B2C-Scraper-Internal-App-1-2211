@@ -1,18 +1,19 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
-import { FiActivity, FiServer, FiSettings, FiDatabase, FiShield, FiList, FiCode, FiFileText, FiZap } from 'react-icons/fi';
+import { FiActivity, FiServer, FiSettings, FiDatabase, FiShield, FiList, FiCode, FiFileText, FiZap, FiLayers, FiSearch } from 'react-icons/fi';
 
 export default function Sidebar({ activeTab, setActiveTab }) {
   const navItems = [
     { id: 'dashboard', label: 'Overview', icon: FiActivity },
-    { id: 'targets', label: 'Scrape Targets', icon: FiServer },
+    { id: 'targets', label: 'Targets', icon: FiServer },
+    { id: 'queue', label: 'Job Queue', icon: FiLayers },
+    { id: 'explorer', label: 'Data Egress', icon: FiSearch },
     { id: 'proxies', label: 'Proxy Swarm', icon: FiZap },
     { id: 'history', label: 'Batch Ledger', icon: FiList },
-    { id: 'schema', label: 'Egress Schema', icon: FiCode },
-    { id: 'telemetry', label: 'Onyx Telemetry', icon: FiShield },
+    { id: 'telemetry', label: 'Telemetry', icon: FiShield },
     { id: 'audit', label: 'Audit Trail', icon: FiFileText },
-    { id: 'settings', label: 'Ecosystem Config', icon: FiSettings },
+    { id: 'settings', label: 'Config', icon: FiSettings },
   ];
 
   return (
@@ -24,7 +25,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
           </div>
           <div>
             <h1 className="text-sm font-bold tracking-widest text-white uppercase">AXiM Onyx</h1>
-            <p className="text-[10px] text-gray-400 font-mono">B2C SCRAPER NODE</p>
+            <p className="text-[10px] text-gray-400 font-mono">NODE MK3</p>
           </div>
         </div>
       </div>
@@ -36,11 +37,11 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             onClick={() => setActiveTab(item.id)}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 relative group ${
               activeTab === item.id 
-                ? 'bg-indigo-500/10 text-white border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
+                ? 'bg-indigo-500/10 text-white border border-indigo-500/20' 
                 : 'text-gray-400 hover:bg-gray-900/50 hover:text-gray-200'
             }`}
           >
-            <SafeIcon icon={item.icon} className={`w-4 h-4 transition-colors ${activeTab === item.id ? 'text-indigo-400' : 'text-gray-500 group-hover:text-gray-400'}`} />
+            <SafeIcon icon={item.icon} className={`w-4 h-4 ${activeTab === item.id ? 'text-indigo-400' : 'text-gray-500 group-hover:text-gray-400'}`} />
             <span>{item.label}</span>
             {activeTab === item.id && (
               <motion.div layoutId="activeIndicator" className="absolute left-0 w-1 h-6 bg-indigo-500 rounded-r-full" />
@@ -51,8 +52,8 @@ export default function Sidebar({ activeTab, setActiveTab }) {
 
       <div className="p-4 border-t border-gray-800">
         <div className="flex items-center space-x-3 px-4 py-3 bg-gray-900/50 rounded-lg border border-gray-800">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-          <span className="text-xs font-mono text-gray-300 uppercase tracking-tighter">Node: ONYX_MK3_EDGE_01</span>
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-xs font-mono text-gray-300 uppercase tracking-tighter truncate">ONYX_MK3_EDGE_01</span>
         </div>
       </div>
     </div>

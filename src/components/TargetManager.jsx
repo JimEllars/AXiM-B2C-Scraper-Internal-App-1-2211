@@ -1,23 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
-import { FiPlus, FiPlay, FiPause, FiLoader, FiTrash2, FiZap, FiSearch, FiFilter } from 'react-icons/fi';
+import { FiPlus, FiPlay, FiPause, FiLoader, FiTrash2, FiSearch, FiLayers } from 'react-icons/fi';
 import { targetService } from '../services/targetService';
-import { telemetryService } from '../services/telemetryService';
-import { executionService } from '../services/executionService';
 import { auditService } from '../services/auditService';
 
 export default function TargetManager() {
   const [targets, setTargets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
+  const [isBulk, setIsBulk] = useState(false);
   const [newUrl, setNewUrl] = useState('');
-  const [actionId, setActionId] = useState(null);
+  const [bulkUrls, setBulkUrls] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
 
-  useEffect(() => {
-    loadTargets();
-  }, []);
+  useEffect(() => { loadTargets(); }, []);
 
   const loadTargets = async () => {
     try {
@@ -32,12 +29,23 @@ export default function TargetManager() {
 
   const handleAddTarget = async (e) => {
     e.preventDefault();
-    if (!newUrl) return;
     setIsAdding(true);
     try {
-      await targetService.create({ url: newUrl });
-      await auditService.log(`Target registered: ${newUrl}`, 'ADMIN', 'TARGET_MANAGER');
-      setNewUrl('');
+      if (isBulk) {
+        const urls = bulkUrls.split('\n').map(u => u.trim()).filter(Boolean);
+        if (!urls.length) return;
+        for (const u of urls) {
+          await targetService.create({ url: u });
+        }
+        await auditService.log(`Bulk registered ${urls.length} targets`, 'ADMIN', 'TARGET_MANAGER');
+        setBulkUrls('');
+        setIsBulk(false);
+      } else {
+        if (!newUrl) return;
+        await targetService.create({ url: newUrl });
+        await auditService.log(`Target registered: ${newUrl}`, 'ADMIN', 'TARGET_MANAGER');
+        setNewUrl('');
+      }
       await loadTargets();
     } catch (err) {
       console.error('Add failed', err);
@@ -47,15 +55,22 @@ export default function TargetManager() {
   };
 
   const handleToggle = async (id, url) => {
-    setActionId(id);
     try {
       const newStatus = await targetService.toggleStatus(id);
       await auditService.log(`Target ${url} set to ${newStatus}`, 'ADMIN', 'TARGET_MANAGER');
       await loadTargets();
     } catch (err) {
       console.error('Toggle failed', err);
-    } finally {
-      setActionId(null);
+    }
+  };
+
+  const handleDelete = async (id, url) => {
+    try {
+      await targetService.remove(id);
+      await auditService.log(`Target ${url} deleted`, 'ADMIN', 'TARGET_MANAGER');
+      await loadTargets();
+    } catch (err) {
+      console.error('Delete failed', err);
     }
   };
 
@@ -74,6 +89,12 @@ export default function TargetManager() {
           <h2 className="text-xl font-bold text-white">Target Orchestration</h2>
           <p className="text-sm text-gray-400">Manage high-scale extraction nodes across the edge network.</p>
         </div>
+        <button 
+          onClick={() => setIsBulk(!isBulk)}
+          className={`px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all border ${isBulk ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' : 'bg-gray-900 border-gray-800 text-gray-400 hover:text-white'}`}
+        >
+          {isBulk ? 'Switch to Single URL' : 'Bulk Import targets'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -81,38 +102,48 @@ export default function TargetManager() {
           <input 
             type="text" 
             placeholder="Search by domain or endpoint..." 
-            value={searchTerm}
+            value={searchTerm} 
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-800 rounded-lg pl-10 pr-4 py-3 text-sm text-gray-300 focus:border-indigo-500 outline-none transition-all"
+            className="w-full bg-gray-900 border border-gray-800 rounded-lg pl-10 pr-4 py-3 text-sm text-gray-300 focus:border-indigo-500 outline-none transition-all" 
           />
           <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
         </div>
-        <div className="flex space-x-2">
-          <select 
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-sm text-gray-400 outline-none focus:border-indigo-500 w-full"
-          >
-            <option value="ALL">All Status</option>
-            <option value="RUNNING">Running</option>
-            <option value="IDLE">Idle</option>
-          </select>
-        </div>
+        <select 
+          value={filterStatus} 
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-sm text-gray-400 outline-none focus:border-indigo-500 w-full"
+        >
+          <option value="ALL">All Status</option>
+          <option value="RUNNING">Running</option>
+          <option value="IDLE">Idle</option>
+        </select>
       </div>
 
-      <form onSubmit={handleAddTarget} className="glass-panel p-4 flex gap-4 bg-indigo-500/5 border-indigo-500/10">
-        <input 
-          type="url" 
-          placeholder="New Extraction Endpoint (https://...)" 
-          className="flex-1 bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm text-gray-300 focus:border-indigo-500 outline-none" 
-          value={newUrl} 
-          onChange={(e) => setNewUrl(e.target.value)} 
-          required 
-        />
-        <button disabled={isAdding} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg text-sm font-bold flex items-center space-x-2 transition-all">
-          {isAdding ? <SafeIcon icon={FiLoader} className="animate-spin" /> : <SafeIcon icon={FiPlus} />}
-          <span>Provision</span>
-        </button>
+      <form onSubmit={handleAddTarget} className="glass-panel p-4 flex flex-col gap-4 bg-indigo-500/5 border-indigo-500/10">
+        {isBulk ? (
+          <textarea 
+            placeholder="Paste multiple URLs here (one per line)...&#10;https://example.com/category/a&#10;https://example.com/category/b" 
+            className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-3 text-sm text-gray-300 focus:border-indigo-500 outline-none h-32 font-mono"
+            value={bulkUrls}
+            onChange={(e) => setBulkUrls(e.target.value)}
+            required
+          />
+        ) : (
+          <input 
+            type="url" 
+            placeholder="New Extraction Endpoint (https://...)" 
+            className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-3 text-sm text-gray-300 focus:border-indigo-500 outline-none" 
+            value={newUrl} 
+            onChange={(e) => setNewUrl(e.target.value)}
+            required 
+          />
+        )}
+        <div className="flex justify-end">
+          <button disabled={isAdding} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-lg text-sm font-bold flex items-center space-x-2 transition-all">
+            {isAdding ? <SafeIcon icon={FiLoader} className="animate-spin" /> : <SafeIcon icon={isBulk ? FiLayers : FiPlus} />}
+            <span>{isBulk ? 'Provision Batch' : 'Provision Target'}</span>
+          </button>
+        </div>
       </form>
 
       <div className="grid gap-4">
@@ -131,11 +162,14 @@ export default function TargetManager() {
             <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <button 
                 onClick={() => handleToggle(target.id, target.url)}
-                className={`p-2 rounded-lg border transition-all ${target.status === 'RUNNING' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'}`}
+                className={`p-2 rounded-lg border transition-all ${target.status === 'RUNNING' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20'}`}
               >
                 <SafeIcon icon={target.status === 'RUNNING' ? FiPause : FiPlay} className="w-4 h-4" />
               </button>
-              <button className="p-2 bg-gray-800 text-gray-400 border border-gray-700 rounded-lg hover:text-rose-400 hover:border-rose-900/50">
+              <button 
+                onClick={() => handleDelete(target.id, target.url)}
+                className="p-2 bg-gray-800 text-gray-400 border border-gray-700 rounded-lg hover:text-rose-400 hover:border-rose-900/50 transition-all"
+              >
                 <SafeIcon icon={FiTrash2} className="w-4 h-4" />
               </button>
             </div>

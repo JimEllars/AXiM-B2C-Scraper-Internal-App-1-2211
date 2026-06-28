@@ -8,7 +8,6 @@ export const proxyService = {
     await ensureTab(TAB, HEADERS);
     const rows = await getRows(`${TAB}!A2:G`);
     if (rows.length === 0) {
-      // Bootstrap with default enterprise rotators if empty
       const defaults = [
         [crypto.randomUUID(), 'ScraperAPI-US', 'US-EAST-1', 'Active', '142ms', '99.2%', new Date().toISOString()],
         [crypto.randomUUID(), 'BrightData-EU', 'EU-WEST-1', 'Active', '189ms', '98.5%', new Date().toISOString()],
@@ -25,5 +24,19 @@ export const proxyService = {
       latency: row[4],
       successRate: row[5]
     }));
+  },
+
+  async create(proxy) {
+    await ensureTab(TAB, HEADERS);
+    const entry = [
+      crypto.randomUUID(),
+      proxy.provider,
+      proxy.region,
+      'TestingHandshake',
+      '---',
+      '0%',
+      new Date().toISOString()
+    ];
+    await appendRow(`${TAB}!A:G`, entry);
   }
 };
