@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiZap, FiCheckShield, FiUserPlus, FiLoader, FiFilter, FiExternalLink } from 'react-icons/fi';
+import { FiZap, FiShield, FiUserPlus, FiLoader, FiFilter, FiExternalLink } from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { enrichmentService } from '../services/enrichmentService';
 import { format } from 'date-fns';

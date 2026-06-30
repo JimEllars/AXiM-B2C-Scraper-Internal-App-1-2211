@@ -8,12 +8,31 @@ export class KVStore {
   }
 
   async getTargetState(domainHash) {
+    if (!this.kv) return null; // Defensive check
+
     const key = `target_state:${domainHash}`;
     const data = await this.kv.get(key, "json");
-    return data || null;
+
+    // Return structured default state if empty
+    if (!data) {
+      return {
+        status: "IDLE",
+        lock_expires_at: null,
+        pagination_cursor: null,
+        last_successful_run: null,
+        metrics: {
+          total_records_extracted: 0,
+          consecutive_failures: 0
+        }
+      };
+    }
+
+    return data;
   }
 
   async acquireLock(domainHash, state) {
+    if (!this.kv) return true; // Fail open if no KV configured
+
     const key = `target_state:${domainHash}`;
     const now = Date.now();
     
@@ -28,6 +47,8 @@ export class KVStore {
   }
 
   async releaseLockAndCommit(domainHash, state, success, newCursor = null) {
+    if (!this.kv) return; // Fail open if no KV
+
     const key = `target_state:${domainHash}`;
     state.status = "IDLE";
     state.lock_expires_at = null;
