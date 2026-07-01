@@ -19,8 +19,9 @@ export class ScraperAPI {
     await new Promise(resolve => setTimeout(resolve, randomDelay));
   }
 
-  async fetchWithEvasion(targetUrl, sessionId) {
+  async fetchWithEvasion(targetUrl, sessionId, signal) {
     return await fetch(this.proxyEndpoint, {
+      signal,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
