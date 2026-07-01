@@ -41,6 +41,11 @@ export class Egress {
     };
   }
 
+  /**
+   * IMPORTANT: This method should be called within ctx.waitUntil()
+   * to ensure background egress completes successfully after the
+   * worker responds to the trigger.
+   */
   async transmit(records) {
     const validRecords = [];
     for (const rec of records) {
@@ -60,15 +65,19 @@ export class Egress {
       records: validRecords
     };
 
-    const response = await fetch(this.env.ENRICHMENT_BRIDGE_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${this.env.AXIM_INTERNAL_KEY}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    return response.status === 202; // Bridge Acknowledgment
+    try {
+      const response = await fetch(this.env.ENRICHMENT_BRIDGE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${this.env.AXIM_INTERNAL_KEY}`
+        },
+        body: JSON.stringify(payload)
+      });
+      return response.status === 202; // Bridge Acknowledgment
+    } catch (e) {
+      console.error("Critical Egress Failure:", e);
+      throw e; // Let index.js handle the telemetry report
+    }
   }
 }

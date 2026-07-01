@@ -58,14 +58,67 @@ export default {
     const telemetry = new Telemetry(env);
     const scraper = new ScraperAPI(env);
     const kv = new KVStore(env);
+    const egress = new Egress(env);
     
     await telemetry.report("execution_start", "LOW", "edge_worker", `Source: ${config.source}`);
 
     try {
-      // Core scraping logic here (as defined in previous steps)
-      // Logic would iterate over config.targetUrl or all KV targets
+      const targetUrl = config.targetUrl || "https://example-fallback.com";
+      const egressDomainHash = await egress.generateHash(targetUrl, "orchestrator");
       
+      let state = await kv.getTargetState(egressDomainHash);
+      if (!state) {
+        state = { status: "IDLE", metrics: { consecutive_failures: 0, total_records_extracted: 0 }, pagination_cursor: null };
+      }
+
+      const locked = await kv.acquireLock(egressDomainHash, state);
+      if (!locked) {
+        await telemetry.report("lock_conflict", "MEDIUM", "kv_store", `Worker collision for ${targetUrl}`);
+        return;
+      }
+
+      let response;
+      try {
+        await scraper.executeJitter();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), parseInt(env.MAX_EXECUTION_TIME_MS || "25000"));
+
+        response = await scraper.fetchWithEvasion(targetUrl, state.pagination_cursor, controller.signal);
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Proxy rejection: HTTP ${response.status}`);
+        }
+      } catch (scrapeErr) {
+        if (scrapeErr.name === 'AbortError') {
+          await telemetry.report("timeout_error", "HIGH", "scraper_api", `Timeout exceeded for ${targetUrl}`);
+        } else {
+          await telemetry.report("proxy_rejection", "HIGH", "scraper_api", scrapeErr.message);
+        }
+        await kv.releaseLockAndCommit(egressDomainHash, state, false);
+        return;
+      }
+
+      const rawData = await response.json();
+
+      if (!rawData || !rawData.records || rawData.records.length === 0) {
+        await telemetry.report("empty_payload", "MEDIUM", "scraper_api", `No records found for ${targetUrl}`);
+        await kv.releaseLockAndCommit(egressDomainHash, state, true, rawData.next_cursor);
+        return;
+      }
+
+      // Format & Egress
+      ctx.waitUntil(
+        egress.transmit(rawData.records)
+          .then(success => {
+            if (!success) telemetry.report("egress_failure", "HIGH", "egress_bridge", "Failed to transmit payload.");
+          })
+          .catch(e => telemetry.report("egress_error", "HIGH", "egress_bridge", e.message))
+      );
+
+      await kv.releaseLockAndCommit(egressDomainHash, state, true, rawData.nextCursor);
       await telemetry.report("execution_complete", "LOW", "edge_worker", `Batch processed successfully via ${config.source}`);
+
     } catch (error) {
       await telemetry.report("execution_error", "HIGH", "edge_worker", error.message);
     }
