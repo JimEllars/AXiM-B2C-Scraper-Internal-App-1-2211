@@ -56,12 +56,8 @@ export class Egress {
     if (validRecords.length === 0) return true; // Nothing to send, but not an error
 
     const payload = {
-      sync_envelope: {
-        batch_id: crypto.randomUUID(),
-        source_node: "AXIM_INTERNAL_B2C_SCRAPER",
-        timestamp: new Date().toISOString(),
-        total_records: validRecords.length
-      },
+      source: "AXIM_INTERNAL_B2C_SCRAPER",
+      batch_id: crypto.randomUUID(),
       records: validRecords
     };
 

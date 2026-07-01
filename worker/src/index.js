@@ -45,7 +45,7 @@ export default {
       // TRIGGER TYPE: REQUEST (External or Manual UI)
       ctx.waitUntil(this.executeScrapeCycle(env, ctx, { 
         source: payload.source || 'EXTERNAL_API',
-        targetUrl: payload.url,
+        targetUrl: payload.targetUrl,
         priority: payload.priority || 'NORMAL'
       }));
 
@@ -83,7 +83,10 @@ export default {
     await telemetry.report("execution_start", "LOW", "edge_worker", `Source: ${config.source}`);
 
     try {
-      const targetUrl = config.targetUrl || "https://example-fallback.com";
+      if (!config.targetUrl) {
+        throw new Error("No target URL provided in configuration.");
+      }
+      const targetUrl = config.targetUrl;
       const egressDomainHash = await egress.generateHash(targetUrl, "orchestrator");
       
       let state = await kv.getTargetState(egressDomainHash);
