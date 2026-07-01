@@ -67,8 +67,9 @@ export default function Dashboard() {
       await executionService.triggerManualOrchestration();
       await loadDashboardData();
     } catch (err) {
-      console.warn("Orchestration triggered (mock)");
-      setTimeout(() => setOrchestrating(false), 2000);
+      console.error("Orchestration failed:", err);
+    } finally {
+      setOrchestrating(false);
     }
   };
 
