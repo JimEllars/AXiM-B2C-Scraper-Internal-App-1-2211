@@ -1,11 +1,45 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import { FiCheckCircle, FiActivity, FiArrowRight } from 'react-icons/fi';
 
 export default function HealthMonitor() {
+  const [workerHealth, setWorkerHealth] = useState({ status: 'Connecting...', latency: 'N/A', load: 'N/A' });
+  const [lastHeartbeat, setLastHeartbeat] = useState(new Date().toLocaleTimeString());
+
+  useEffect(() => {
+    const checkHealth = async () => {
+      const startTime = Date.now();
+      try {
+        const workerUrl = import.meta.env.VITE_WORKER_URL || 'http://localhost:8787';
+        const response = await fetch(`${workerUrl}/health`);
+        const data = await response.json();
+        const latency = Date.now() - startTime;
+
+        setWorkerHealth({
+          status: data.status === 'ONLINE' ? 'Healthy' : 'Degraded',
+          latency: `${latency}ms`,
+          load: data.load || 'Unknown'
+        });
+        setLastHeartbeat(new Date(data.timestamp || Date.now()).toLocaleTimeString());
+      } catch (error) {
+        setWorkerHealth({
+          status: 'Offline',
+          latency: 'N/A',
+          load: '0%'
+        });
+        setLastHeartbeat(new Date().toLocaleTimeString());
+      }
+    };
+
+    checkHealth();
+    const intervalId = setInterval(checkHealth, 30000); // Check every 30 seconds
+
+    return () => clearInterval(intervalId);
+  }, []);
+
   const nodes = [
-    { name: 'Edge Worker Node', status: 'Healthy', latency: '42ms', load: '12%' },
+    { name: 'Edge Worker Node', status: workerHealth.status, latency: workerHealth.latency, load: workerHealth.load },
     { name: 'Cloudflare KV Ledger', status: 'Healthy', latency: '18ms', usage: '0.4GB' },
     { name: 'CRM Enrichment Bridge', status: 'Healthy', latency: '156ms', uptime: '99.9%' },
     { name: 'Onyx Mk3 Swarm', status: 'Standby', latency: 'N/A', mode: 'Autonomous' },
@@ -19,7 +53,7 @@ export default function HealthMonitor() {
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">Macro-Ecosystem Health</h3>
         </div>
         <div className="flex items-center space-x-2">
-          <span className="text-[10px] text-gray-500 font-mono uppercase">Last Heartbeat: {new Date().toLocaleTimeString()}</span>
+          <span className="text-[10px] text-gray-500 font-mono uppercase">Last Heartbeat: {lastHeartbeat}</span>
         </div>
       </div>
       

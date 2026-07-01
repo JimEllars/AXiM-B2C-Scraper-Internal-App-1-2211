@@ -47,8 +47,28 @@ export default {
     }
 
     // 2. Health Check
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        }
+      });
+    }
+
     if (url.pathname === "/health") {
-      return new Response(JSON.stringify({ status: "ONLINE", load: "PASSIVE" }), { status: 200 });
+      return new Response(JSON.stringify({
+        status: "ONLINE",
+        load: "PASSIVE",
+        timestamp: new Date().toISOString()
+      }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
     }
 
     return new Response("AXiM Onyx Node: Awaiting Orchestration", { status: 404 });
@@ -116,7 +136,7 @@ export default {
           .catch(e => telemetry.report("egress_error", "HIGH", "egress_bridge", e.message))
       );
 
-      await kv.releaseLockAndCommit(egressDomainHash, state, true, rawData.nextCursor);
+      await kv.releaseLockAndCommit(egressDomainHash, state, true, rawData.next_cursor);
       await telemetry.report("execution_complete", "LOW", "edge_worker", `Batch processed successfully via ${config.source}`);
 
     } catch (error) {
