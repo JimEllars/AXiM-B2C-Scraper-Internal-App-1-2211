@@ -18,6 +18,16 @@ export default {
 
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    // Handle CORS preflight requests
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        }
+      });
+    }
     
     // 1. External AXiM Ecosystem Trigger
     if (url.pathname === "/api/trigger" && request.method === "POST") {
@@ -26,7 +36,7 @@ export default {
       if (authHeader !== `Bearer ${env.DASHBOARD_ACCESS_TOKEN}`) {
         return new Response(JSON.stringify({ error: "Unauthorized Node Access" }), { 
           status: 401,
-          headers: { "Content-Type": "application/json" }
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         });
       }
 
@@ -43,20 +53,10 @@ export default {
         status: "ACKNOWLEDGED",
         node: "AXIM_ONYX_MK3",
         job_id: crypto.randomUUID()
-      }), { status: 202 });
+      }), { status: 202, headers: { "Access-Control-Allow-Origin": "*" } });
     }
 
     // 2. Health Check
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        }
-      });
-    }
-
     if (url.pathname === "/health") {
       return new Response(JSON.stringify({
         status: "ONLINE",
@@ -71,7 +71,7 @@ export default {
       });
     }
 
-    return new Response("AXiM Onyx Node: Awaiting Orchestration", { status: 404 });
+    return new Response("AXiM Onyx Node: Awaiting Orchestration", { status: 404, headers: { "Access-Control-Allow-Origin": "*" } });
   },
 
   async executeScrapeCycle(env, ctx, config) {
@@ -119,7 +119,14 @@ export default {
         return;
       }
 
-      const rawData = await response.json();
+      let rawData;
+      try {
+        rawData = await response.json();
+      } catch (parseError) {
+        await telemetry.report("proxy_payload_parse_error", "HIGH", "scraper_api", "Failed to parse JSON response from proxy.");
+        await kv.releaseLockAndCommit(egressDomainHash, state, false);
+        return;
+      }
 
       if (!rawData || !rawData.records || rawData.records.length === 0) {
         await telemetry.report("empty_payload", "MEDIUM", "scraper_api", `No records found for ${targetUrl}`);
