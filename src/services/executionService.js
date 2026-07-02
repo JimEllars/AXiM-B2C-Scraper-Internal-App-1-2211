@@ -31,7 +31,7 @@ export const executionService = {
         },
         body: JSON.stringify({
           source: 'MANUAL_UI',
-          url: target.url,
+          targetUrl: target.url,
           priority: 'HIGH'
         })
       });

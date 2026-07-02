@@ -35,11 +35,10 @@ export default function TelemetryStream() {
   };
 
   const getIcon = (type) => {
-    switch (type) {
-      case 'error': return <SafeIcon icon={FiAlertCircle} className="text-rose-400" />;
-      case 'success': return <SafeIcon icon={FiCheckCircle} className="text-emerald-400" />;
-      default: return <SafeIcon icon={FiInfo} className="text-indigo-400" />;
-    }
+    const t = type ? type.toUpperCase() : '';
+    if (t === 'ERROR' || t === 'HIGH') return <SafeIcon icon={FiAlertCircle} className="text-rose-400" />;
+    if (t === 'SUCCESS') return <SafeIcon icon={FiCheckCircle} className="text-emerald-400" />;
+    return <SafeIcon icon={FiInfo} className="text-slate-400" />;
   };
 
   if (loading) {
@@ -96,11 +95,11 @@ export default function TelemetryStream() {
                   animate={{ opacity: 1, x: 0 }}
                   key={log.id}
                   className={`grid grid-cols-12 gap-4 p-3 rounded-lg border text-[11px] items-center transition-all ${
-                    log.type === 'error' 
-                      ? 'bg-rose-500/5 border-rose-500/10 text-rose-300' 
-                      : log.type === 'success' 
+                    (log.type && (log.type.toUpperCase() === 'ERROR' || log.type.toUpperCase() === 'HIGH'))
+                      ? 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                      : (log.type && log.type.toUpperCase() === 'SUCCESS')
                         ? 'bg-emerald-500/5 border-emerald-500/10 text-emerald-300' 
-                        : 'bg-gray-900/40 border-gray-800 text-gray-300'
+                        : 'bg-gray-900/40 border-gray-800 text-slate-400'
                   }`}
                 >
                   <div className="col-span-2 opacity-60">
@@ -112,6 +111,9 @@ export default function TelemetryStream() {
                     </span>
                   </div>
                   <div className="col-span-8 flex items-center space-x-3">
+                    {(log.type && (log.type.toUpperCase() === 'ERROR' || log.type.toUpperCase() === 'HIGH')) && (
+                      <span className="px-1.5 py-0.5 rounded bg-rose-500/20 border border-rose-500/30 text-[9px] font-bold text-rose-400 uppercase">HIGH SEV</span>
+                    )}
                     {getIcon(log.type)}
                     <span className="truncate">{log.message}</span>
                   </div>
