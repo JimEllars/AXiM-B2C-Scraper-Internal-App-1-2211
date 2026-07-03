@@ -3,7 +3,7 @@ import ReactECharts from 'echarts-for-react';
 import StatCard from './StatCard';
 import HealthMonitor from './HealthMonitor';
 import NetworkMap from './NetworkMap';
-import { FiUsers, FiDatabase, FiAlertTriangle, FiZap, FiLoader, FiTrendingUp, FiPieChart, FiTarget } from 'react-icons/fi';
+import { FiUsers, FiDatabase, FiAlertTriangle, FiZap, FiLoader, FiTrendingUp, FiPieChart, FiTarget, FiActivity } from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { targetService } from '../services/targetService';
 import { batchService } from '../services/batchService';
@@ -15,6 +15,9 @@ export default function Dashboard() {
   const [orchestrating, setOrchestrating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState({ dates: [], values: [] });
+
+  const [kvStates, setKvStates] = useState([]);
+
   const [stats, setStats] = useState({
     totalLeads: 0,
     activeNodes: 0,
@@ -23,6 +26,29 @@ export default function Dashboard() {
   });
 
   useEffect(() => { loadDashboardData(); }, []);
+
+  useEffect(() => {
+    let intervalId;
+    const pollKvState = async () => {
+      try {
+        const workerUrl = (import.meta.env.VITE_WORKER_URL || 'http://localhost:8787') + '/api/state';
+        const token = import.meta.env.VITE_DASHBOARD_ACCESS_TOKEN;
+        const response = await fetch(workerUrl, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setKvStates(data);
+        }
+      } catch (err) {
+        console.warn('Failed to poll KV state', err);
+      }
+    };
+    pollKvState();
+    intervalId = setInterval(pollKvState, 5000);
+    return () => clearInterval(intervalId);
+  }, []);
+
 
   const loadDashboardData = async () => {
     try {
@@ -104,6 +130,51 @@ export default function Dashboard() {
           {orchestrating ? <SafeIcon icon={FiLoader} className="animate-spin" /> : <SafeIcon icon={FiZap} />}
           <span>{orchestrating ? 'Orchestrating Swarm...' : 'Trigger Global Scrape'}</span>
         </button>
+      </div>
+
+
+      <div className="grid grid-cols-1 gap-6 mb-8">
+        <div className="glass-panel p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
+              <SafeIcon icon={FiActivity} className="text-emerald-400" />
+              <h3 className="text-sm font-bold text-white uppercase tracking-widest">Active Cron Cursors</h3>
+            </div>
+            <span className="text-xs text-gray-400 font-mono">Live KV State</span>
+          </div>
+          {kvStates.length === 0 ? (
+            <div className="text-sm text-gray-500 font-mono py-4 text-center">No active cursors found. Orchestrator idle.</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {kvStates.map((state, i) => (
+                <div key={i} className="bg-slate-800/50 rounded p-4 border border-slate-700/50">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs text-gray-400 font-mono truncate" title={state.key}>{state.key.substring(0, 16)}...</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${state.status === 'RUNNING' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-300'}`}>
+                      {state.status}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-xs text-slate-500">Cursor:</span>
+                      <span className="text-xs text-indigo-400 font-mono">{state.pagination_cursor || 'START'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-xs text-slate-500">Records:</span>
+                      <span className="text-xs text-slate-300 font-mono">{state.metrics?.total_records_extracted || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-xs text-slate-500">Failures:</span>
+                      <span className={`text-xs font-mono ${(state.metrics?.consecutive_failures || 0) > 0 ? 'text-red-400' : 'text-slate-300'}`}>
+                        {state.metrics?.consecutive_failures || 0}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

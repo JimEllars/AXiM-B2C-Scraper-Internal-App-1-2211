@@ -56,6 +56,30 @@ export default {
       }), { status: 202, headers: { "Access-Control-Allow-Origin": "*" } });
     }
 
+
+    // 3. KV State Polling Endpoint
+    if (url.pathname === "/api/state" && request.method === "GET") {
+      const authHeader = request.headers.get("Authorization");
+
+      if (authHeader !== `Bearer ${env.DASHBOARD_ACCESS_TOKEN}`) {
+        return new Response(JSON.stringify({ error: "Unauthorized Node Access" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
+      }
+
+      const kv = new KVStore(env);
+      const states = await kv.getAllStates();
+
+      return new Response(JSON.stringify(states), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
+    }
+
     // 2. Health Check
     if (url.pathname === "/health") {
       return new Response(JSON.stringify({
@@ -132,8 +156,22 @@ export default {
       }
 
       if (!rawData || !rawData.records || rawData.records.length === 0) {
-        await telemetry.report("empty_payload", "MEDIUM", "scraper_api", `No records found for ${targetUrl}`);
-        await kv.releaseLockAndCommit(egressDomainHash, state, true, rawData.next_cursor);
+        await telemetry.report("dom_mapping_failed_zero_records", "HIGH", "scraper_api", `No records found for ${targetUrl}`);
+
+        // Fallback cursor advancement
+        let fallbackCursor = rawData?.next_cursor;
+        if (!fallbackCursor) {
+          const currentCursor = state.pagination_cursor || "page=1";
+          const pageMatch = currentCursor.match(/page=(\d+)/);
+          if (pageMatch) {
+            const nextPage = parseInt(pageMatch[1]) + 1;
+            fallbackCursor = currentCursor.replace(`page=${pageMatch[1]}`, `page=${nextPage}`);
+          } else {
+            fallbackCursor = currentCursor + "&page=2";
+          }
+        }
+
+        await kv.releaseLockAndCommit(egressDomainHash, state, true, fallbackCursor);
         return;
       }
 

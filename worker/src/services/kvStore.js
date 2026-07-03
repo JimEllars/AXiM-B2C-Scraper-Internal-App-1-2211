@@ -46,6 +46,32 @@ export class KVStore {
     return true;
   }
 
+
+  async getAllStates() {
+    if (!this.kv) return [];
+
+    let allKeys = [];
+    let cursor = null;
+    let complete = false;
+
+    while (!complete) {
+      const result = await this.kv.list({ prefix: "target_state:", cursor });
+      allKeys.push(...result.keys);
+      complete = result.list_complete;
+      if (!complete) cursor = result.cursor;
+    }
+
+    const states = [];
+    for (const key of allKeys) {
+      const data = await this.kv.get(key.name, "json");
+      if (data) {
+        states.push({ key: key.name.replace("target_state:", ""), ...data });
+      }
+    }
+
+    return states;
+  }
+
   async releaseLockAndCommit(domainHash, state, success, newCursor = null) {
     if (!this.kv) return; // Fail open if no KV
 

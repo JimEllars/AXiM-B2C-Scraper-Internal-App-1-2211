@@ -62,7 +62,7 @@ export class Egress {
     };
 
     try {
-      const response = await fetch(this.env.ENRICHMENT_BRIDGE_URL, {
+      let response = await fetch(this.env.ENRICHMENT_BRIDGE_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -70,6 +70,21 @@ export class Egress {
         },
         body: JSON.stringify(payload)
       });
+
+      if (response.status === 429) {
+        console.warn("Egress Rate Limit Hit (429). Initiating backoff...");
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        response = await fetch(this.env.ENRICHMENT_BRIDGE_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${this.env.AXIM_INTERNAL_KEY}`
+          },
+          body: JSON.stringify(payload)
+        });
+      }
+
       return response.status === 202; // Bridge Acknowledgment
     } catch (e) {
       console.error("Critical Egress Failure:", e);
