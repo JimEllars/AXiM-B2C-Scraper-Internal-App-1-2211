@@ -13,7 +13,18 @@ export default {
   async scheduled(event, env, ctx) {
     // TRIGGER TYPE: SCHEDULED
     // Automatically runs based on wrangler.toml crons
-    ctx.waitUntil(this.executeScrapeCycle(env, ctx, { source: 'CRON_SCHEDULE' }));
+    const telemetry = new Telemetry(env);
+    await telemetry.report("CRON_START", "LOW", "edge_worker", "Cron execution started");
+
+    ctx.waitUntil(
+      this.executeScrapeCycle(env, ctx, { source: 'CRON_SCHEDULE', targetUrl: env.DEFAULT_CRON_TARGET_URL })
+        .then(async (metrics) => {
+          await telemetry.report("CRON_END", "LOW", "edge_worker", `Cron execution finished. Records: ${metrics?.recordsProcessed || 0}, Final Cursor: ${metrics?.finalCursor || 'Unknown'}`);
+        })
+        .catch(async (err) => {
+          await telemetry.report("CRON_END_ERROR", "HIGH", "edge_worker", `Cron execution failed: ${err.message}`);
+        })
+    );
   },
 
   async fetch(request, env, ctx) {
@@ -121,7 +132,7 @@ export default {
       const locked = await kv.acquireLock(egressDomainHash, state);
       if (!locked) {
         await telemetry.report("lock_conflict", "MEDIUM", "kv_store", `Worker collision for ${targetUrl}`);
-        return;
+        return { recordsProcessed: 0, finalCursor: state.pagination_cursor };
       }
 
       let response;
@@ -143,7 +154,7 @@ export default {
           await telemetry.report("proxy_rejection", "HIGH", "scraper_api", scrapeErr.message);
         }
         await kv.releaseLockAndCommit(egressDomainHash, state, false);
-        return;
+        return { recordsProcessed: 0, finalCursor: state.pagination_cursor };
       }
 
       let rawData;
@@ -152,7 +163,7 @@ export default {
       } catch (parseError) {
         await telemetry.report("proxy_payload_parse_error", "HIGH", "scraper_api", "Failed to parse JSON response from proxy.");
         await kv.releaseLockAndCommit(egressDomainHash, state, false);
-        return;
+        return { recordsProcessed: 0, finalCursor: state.pagination_cursor };
       }
 
       if (!rawData || !rawData.records || rawData.records.length === 0) {
@@ -172,7 +183,7 @@ export default {
         }
 
         await kv.releaseLockAndCommit(egressDomainHash, state, true, fallbackCursor);
-        return;
+        return { recordsProcessed: 0, finalCursor: fallbackCursor };
       }
 
       // Format & Egress
@@ -187,8 +198,11 @@ export default {
       await kv.releaseLockAndCommit(egressDomainHash, state, true, rawData.next_cursor);
       await telemetry.report("execution_complete", "LOW", "edge_worker", `Batch processed successfully via ${config.source}`);
 
+      return { recordsProcessed: rawData.records.length, finalCursor: rawData.next_cursor };
+
     } catch (error) {
       await telemetry.report("execution_error", "HIGH", "edge_worker", error.message);
+      return { recordsProcessed: 0, finalCursor: null };
     }
   }
 };
