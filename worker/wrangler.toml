@@ -16,6 +16,14 @@ ENRICHMENT_BRIDGE_URL = "https://api.axim.us.com/v1/webhooks/enrich"
 TELEMETRY_ENDPOINT = "https://api.axim.us.com/v1/telemetry/collect"
 TARGET_BATCH_SIZE = "100"
 MAX_EXECUTION_TIME_MS = "25000"
+DEFAULT_CRON_TARGET_URL = "https://example.com/target"
+
+# INSTRUCTIONS FOR SENSITIVE SECRETS:
+# Do NOT hardcode sensitive API keys or tokens in this file.
+# Use the `wrangler secret put <KEY_NAME>` command to set the following:
+# - PROXY_PROVIDER_KEY: External proxy API key (e.g., ScraperAPI)
+# - AXIM_INTERNAL_KEY: Internal key for Bridge and Telemetry access
+# - DASHBOARD_ACCESS_TOKEN: Token to authenticate node access requests
 
 # Phase III: Autonomous Execution Schedule (Cron Triggers)
 [triggers]
