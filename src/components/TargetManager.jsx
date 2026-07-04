@@ -14,7 +14,11 @@ export default function TargetManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
 
-  useEffect(() => { loadTargets(); }, []);
+  useEffect(() => {
+    loadTargets();
+    const intervalId = setInterval(loadTargets, 15000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const loadTargets = async () => {
     try {

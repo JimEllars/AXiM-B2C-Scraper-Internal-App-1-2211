@@ -24,14 +24,21 @@ export default {
     if (kv) {
       try {
         const queueStr = await kv.get("TARGET_QUEUE");
-        if (queueStr) {
-          const queue = JSON.parse(queueStr);
-          const activeTargets = queue.filter(t => t.status === 'RUNNING');
-          if (activeTargets.length > 0) {
-            // Pick a random target to process, or could pop/shift. Let's pick random for rotation as frontend did.
-            const target = activeTargets[Math.floor(Math.random() * activeTargets.length)];
-            targetUrl = target.url;
-          }
+        if (!queueStr || JSON.parse(queueStr).length === 0) {
+          await telemetry.report("QUEUE_EMPTY_SLEEPING", "LOW", "edge_worker", "Target queue is empty. Sleeping.");
+          return;
+        }
+
+        const queue = JSON.parse(queueStr);
+        const activeTargets = queue.filter(t => t.status === 'RUNNING');
+
+        if (activeTargets.length > 0) {
+          // Pick a random target to process, or could pop/shift. Let's pick random for rotation as frontend did.
+          const target = activeTargets[Math.floor(Math.random() * activeTargets.length)];
+          targetUrl = target.url;
+        } else {
+          await telemetry.report("QUEUE_EMPTY_SLEEPING", "LOW", "edge_worker", "No running targets. Sleeping.");
+          return;
         }
       } catch (e) {
         await telemetry.report("CRON_QUEUE_ERROR", "MEDIUM", "edge_worker", "Failed to parse target queue from KV");
@@ -255,6 +262,12 @@ export default {
     
     await telemetry.report("execution_start", "LOW", "edge_worker", `Source: ${config.source}`);
 
+    const sysLockAcquired = await kv.acquireSystemLock();
+    if (!sysLockAcquired) {
+      await telemetry.report("SYSTEM_LOCKED_CONCURRENCY_PREVENTED", "MEDIUM", "edge_worker", "System locked by another execution.");
+      return { recordsProcessed: 0, finalCursor: null };
+    }
+
     try {
       if (!config.targetUrl) {
         throw new Error("No target URL provided in configuration.");
@@ -341,6 +354,8 @@ export default {
     } catch (error) {
       await telemetry.report("execution_error", "HIGH", "edge_worker", error.message);
       return { recordsProcessed: 0, finalCursor: null };
+    } finally {
+      await kv.releaseSystemLock();
     }
   }
 };

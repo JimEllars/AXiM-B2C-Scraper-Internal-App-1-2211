@@ -27,7 +27,13 @@ export default function Dashboard() {
     leadQuality: '8.4'
   });
 
-  useEffect(() => { loadDashboardData(); }, []);
+  const [systemLock, setSystemLock] = useState({ locked: false, expires_at: null });
+
+  useEffect(() => {
+    loadDashboardData();
+    const intervalId = setInterval(loadDashboardData, 15000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     let intervalId;
@@ -40,7 +46,14 @@ export default function Dashboard() {
         });
         if (response.ok) {
           const data = await response.json();
-          setKvStates(data);
+          // The new response shape is { states: [...], systemLock: { locked: true/false } }
+          if (data && data.states !== undefined) {
+             setKvStates(data.states);
+             setSystemLock(data.systemLock || { locked: false });
+          } else {
+             // Fallback if older response structure
+             setKvStates(Array.isArray(data) ? data : []);
+          }
           setSystemOffline(false);
         } else {
           setSystemOffline(true);
@@ -51,7 +64,7 @@ export default function Dashboard() {
       }
     };
     pollKvState();
-    intervalId = setInterval(pollKvState, 5000);
+    intervalId = setInterval(pollKvState, 5000); // 5s for KV state polling
     return () => clearInterval(intervalId);
   }, []);
 
@@ -179,7 +192,14 @@ export default function Dashboard() {
               <SafeIcon icon={FiActivity} className="text-emerald-400" />
               <h3 className="text-sm font-bold text-white uppercase tracking-widest">Active Cron Cursors</h3>
             </div>
-            <span className="text-xs text-gray-400 font-mono">Live KV State</span>
+            <div className="flex items-center space-x-4">
+              {systemLock.locked && (
+                 <span className="text-[10px] px-2 py-1 rounded bg-amber-500/20 text-amber-500 font-bold border border-amber-500/30 animate-pulse">
+                   SYSTEM LOCKED
+                 </span>
+              )}
+              <span className="text-xs text-gray-400 font-mono">Live KV State</span>
+            </div>
           </div>
           {kvStates.length === 0 ? (
             <div className="text-sm text-gray-500 font-mono py-4 text-center">No active cursors found. Orchestrator idle.</div>
