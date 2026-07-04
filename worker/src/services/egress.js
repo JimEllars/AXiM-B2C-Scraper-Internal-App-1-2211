@@ -1,3 +1,4 @@
+import { Telemetry } from '../utils/telemetry.js';
 /**
  * Data Mapping & Schema Contract
  * Formats extracted DOM data and transmits to Omni-Channel CRM Enrichment Bridge.
@@ -17,7 +18,9 @@ export class Egress {
 
   async validateAndFormatRecord(rawRecord) {
     // Fallback Matrix: Missing Email AND Missing Phone -> DROP
-    if (!rawRecord.email && !rawRecord.phone) return null;
+    const hasEmail = rawRecord.email && rawRecord.email.trim() !== '';
+    const hasPhone = rawRecord.phone && rawRecord.phone.trim() !== '';
+    if (!hasEmail && !hasPhone) return null;
 
     const lead_id = await this.generateHash(rawRecord.origin_url, rawRecord.email || rawRecord.phone);
 
@@ -46,7 +49,7 @@ export class Egress {
    * to ensure background egress completes successfully after the
    * worker responds to the trigger.
    */
-  async transmit(records) {
+  async transmit(records, isDryRun = false) {
     const validRecords = [];
     for (const rec of records) {
       const formatted = await this.validateAndFormatRecord(rec);
@@ -60,6 +63,12 @@ export class Egress {
       batch_id: crypto.randomUUID(),
       records: validRecords
     };
+
+    if (isDryRun) {
+      const telemetry = new Telemetry(this.env);
+      await telemetry.report("DRY_RUN_PAYLOAD", "INFO", "egress_bridge", `Dry Run Egress Payload: ${JSON.stringify(payload)}`);
+      return true;
+    }
 
     try {
       let response = await fetch(this.env.ENRICHMENT_BRIDGE_URL, {
