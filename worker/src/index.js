@@ -11,13 +11,35 @@ import { Telemetry } from './utils/telemetry.js';
  */
 export default {
   async scheduled(event, env, ctx) {
+
     // TRIGGER TYPE: SCHEDULED
     // Automatically runs based on wrangler.toml crons
     const telemetry = new Telemetry(env);
     await telemetry.report("CRON_START", "LOW", "edge_worker", "Cron execution started");
 
+    let targetUrl = env.DEFAULT_CRON_TARGET_URL;
+
+    // Read queue from KV
+    const kv = env.B2C_SCRAPER_STATE;
+    if (kv) {
+      try {
+        const queueStr = await kv.get("TARGET_QUEUE");
+        if (queueStr) {
+          const queue = JSON.parse(queueStr);
+          const activeTargets = queue.filter(t => t.status === 'RUNNING');
+          if (activeTargets.length > 0) {
+            // Pick a random target to process, or could pop/shift. Let's pick random for rotation as frontend did.
+            const target = activeTargets[Math.floor(Math.random() * activeTargets.length)];
+            targetUrl = target.url;
+          }
+        }
+      } catch (e) {
+        await telemetry.report("CRON_QUEUE_ERROR", "MEDIUM", "edge_worker", "Failed to parse target queue from KV");
+      }
+    }
+
     ctx.waitUntil(
-      this.executeScrapeCycle(env, ctx, { source: 'CRON_SCHEDULE', targetUrl: env.DEFAULT_CRON_TARGET_URL })
+      this.executeScrapeCycle(env, ctx, { source: 'CRON_SCHEDULE', targetUrl })
         .then(async (metrics) => {
           await telemetry.report("CRON_END", "LOW", "edge_worker", `Cron execution finished. Records: ${metrics?.recordsProcessed || 0}, Final Cursor: ${metrics?.finalCursor || 'Unknown'}`);
         })
@@ -27,6 +49,7 @@ export default {
     );
   },
 
+
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     // Handle CORS preflight requests
@@ -34,13 +57,127 @@ export default {
       return new Response(null, {
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type, Authorization",
         }
       });
     }
     
+
+    // 0. Target Queue Manager endpoints
+    if (url.pathname === "/api/targets") {
+      const authHeader = request.headers.get("Authorization");
+
+      if (authHeader !== `Bearer ${env.DASHBOARD_ACCESS_TOKEN}`) {
+        return new Response(JSON.stringify({ error: "Unauthorized Node Access" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
+      }
+
+      if (request.method === "GET") {
+        const kv = env.B2C_SCRAPER_STATE;
+        let queue = [];
+        const queueStr = await kv.get("TARGET_QUEUE");
+        if (queueStr) {
+          try {
+            queue = JSON.parse(queueStr);
+          } catch (e) { /* ignore */ }
+        }
+        return new Response(JSON.stringify(queue), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      }
+
+      if (request.method === "POST") {
+        const payload = await request.json();
+        const kv = env.B2C_SCRAPER_STATE;
+        let queue = [];
+        const queueStr = await kv.get("TARGET_QUEUE");
+        if (queueStr) {
+          try {
+            queue = JSON.parse(queueStr);
+          } catch (e) { /* ignore */ }
+        }
+
+        if (Array.isArray(payload)) {
+           queue.push(...payload);
+        } else {
+           queue.push(payload);
+        }
+
+        await kv.put("TARGET_QUEUE", JSON.stringify(queue));
+
+        return new Response(JSON.stringify({ status: "ACKNOWLEDGED", queueLength: queue.length }), {
+          status: 202,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      }
+
+      if (request.method === "PUT") {
+         const payload = await request.json();
+         const kv = env.B2C_SCRAPER_STATE;
+         let queue = [];
+         const queueStr = await kv.get("TARGET_QUEUE");
+         if (queueStr) {
+           try {
+             queue = JSON.parse(queueStr);
+           } catch (e) { /* ignore */ }
+         }
+
+         const idx = queue.findIndex(t => t.id === payload.id);
+         if (idx !== -1) {
+             queue[idx] = { ...queue[idx], ...payload };
+         } else {
+             queue.push(payload);
+         }
+         await kv.put("TARGET_QUEUE", JSON.stringify(queue));
+
+         return new Response(JSON.stringify({ status: "ACKNOWLEDGED", queueLength: queue.length }), {
+            status: 202,
+            headers: {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          });
+      }
+
+      if (request.method === "DELETE") {
+         const urlParams = new URL(request.url).searchParams;
+         const id = urlParams.get("id");
+         const kv = env.B2C_SCRAPER_STATE;
+         let queue = [];
+         const queueStr = await kv.get("TARGET_QUEUE");
+         if (queueStr) {
+           try {
+             queue = JSON.parse(queueStr);
+           } catch (e) { /* ignore */ }
+         }
+
+         if (id) {
+            queue = queue.filter(t => t.id !== id);
+         }
+         await kv.put("TARGET_QUEUE", JSON.stringify(queue));
+
+         return new Response(JSON.stringify({ status: "ACKNOWLEDGED", queueLength: queue.length }), {
+            status: 202,
+            headers: {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          });
+      }
+    }
+
     // 1. External AXiM Ecosystem Trigger
+
     if (url.pathname === "/api/trigger" && request.method === "POST") {
       const authHeader = request.headers.get("Authorization");
       
