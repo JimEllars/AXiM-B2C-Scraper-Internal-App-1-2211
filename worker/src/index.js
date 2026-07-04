@@ -57,7 +57,8 @@ export default {
       ctx.waitUntil(this.executeScrapeCycle(env, ctx, { 
         source: payload.source || 'EXTERNAL_API',
         targetUrl: payload.targetUrl,
-        priority: payload.priority || 'NORMAL'
+        priority: payload.priority || 'NORMAL',
+        dryRun: payload.dry_run || false
       }));
 
       return new Response(JSON.stringify({ 
@@ -188,7 +189,7 @@ export default {
 
       // Format & Egress
       ctx.waitUntil(
-        egress.transmit(rawData.records)
+        egress.transmit(rawData.records, config.dryRun)
           .then(success => {
             if (!success) telemetry.report("egress_failure", "HIGH", "egress_bridge", "Failed to transmit payload.");
           })

@@ -13,6 +13,7 @@ import { format, subDays, startOfDay, isWithinInterval } from 'date-fns';
 
 export default function Dashboard() {
   const [orchestrating, setOrchestrating] = useState(false);
+  const [dryRun, setDryRun] = useState(false);
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState({ dates: [], values: [] });
   const [systemOffline, setSystemOffline] = useState(false);
@@ -96,7 +97,7 @@ export default function Dashboard() {
   const handleManualOrchestration = async () => {
     setOrchestrating(true);
     try {
-      await executionService.triggerManualOrchestration();
+      await executionService.triggerManualOrchestration(dryRun);
       await loadDashboardData();
     } catch (err) {
       console.error("Orchestration failed:", err);
@@ -148,14 +149,26 @@ export default function Dashboard() {
           <h2 className="text-xl font-bold text-white mb-2 text-glow">B2C Intelligence Command</h2>
           <p className="text-sm text-gray-400 font-mono uppercase tracking-tighter">Onyx Mk3 • Edge Orchestrator</p>
         </div>
-        <button 
-          onClick={handleManualOrchestration} 
-          disabled={orchestrating}
-          className="flex items-center space-x-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-600/20"
-        >
-          {orchestrating ? <SafeIcon icon={FiLoader} className="animate-spin" /> : <SafeIcon icon={FiZap} />}
-          <span>{orchestrating ? 'Orchestrating Swarm...' : 'Trigger Global Scrape'}</span>
-        </button>
+
+        <div className="flex items-center space-x-4">
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <div className="relative">
+              <input type="checkbox" className="sr-only" checked={dryRun} onChange={() => setDryRun(!dryRun)} />
+              <div className={`block w-10 h-6 rounded-full transition-colors ${dryRun ? 'bg-amber-500' : 'bg-gray-700'}`}></div>
+              <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${dryRun ? 'transform translate-x-4' : ''}`}></div>
+            </div>
+            <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Dry Run Mode</span>
+          </label>
+
+          <button
+            onClick={handleManualOrchestration}
+            disabled={orchestrating}
+            className="flex items-center space-x-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-600/20"
+          >
+            {orchestrating ? <SafeIcon icon={FiLoader} className="animate-spin" /> : <SafeIcon icon={FiZap} />}
+            <span>{orchestrating ? 'Orchestrating Swarm...' : 'Trigger Global Scrape'}</span>
+          </button>
+        </div>
       </div>
 
 

@@ -4,7 +4,7 @@ import { queueService } from './queueService';
 import { targetService } from './targetService';
 
 export const executionService = {
-  async triggerManualOrchestration() {
+  async triggerManualOrchestration(dryRun = false) {
     await telemetryService.log('info', 'Manual B2C Orchestration sequence initiated', 'CONTROL_PLANE');
     
     try {
@@ -32,7 +32,8 @@ export const executionService = {
         body: JSON.stringify({
           source: 'MANUAL_UI',
           targetUrl: target.url,
-          priority: 'HIGH'
+          priority: 'HIGH',
+          dry_run: dryRun
         })
       });
 

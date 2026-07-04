@@ -10,6 +10,7 @@ export default function TelemetryStream() {
   const [loading, setLoading] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const pollInterval = useRef(null);
+  const endOfStreamRef = useRef(null);
 
   useEffect(() => {
     loadLogs();
@@ -22,11 +23,20 @@ export default function TelemetryStream() {
     return () => clearInterval(pollInterval.current);
   }, [isPaused]);
 
+  useEffect(() => {
+    if (endOfStreamRef.current) {
+      setTimeout(() => {
+          endOfStreamRef.current.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
+  }, [logs]);
+
   const loadLogs = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
       const data = await telemetryService.getAll();
-      setLogs(data);
+      const sortedAndCapped = data.sort((a, b) => new Date(a.time) - new Date(b.time)).slice(-100);
+      setLogs(sortedAndCapped);
     } catch (err) {
       console.error('Failed to load telemetry', err);
     } finally {
@@ -121,6 +131,7 @@ export default function TelemetryStream() {
               ))
             )}
           </AnimatePresence>
+          <div ref={endOfStreamRef} />
         </div>
       </div>
     </div>
