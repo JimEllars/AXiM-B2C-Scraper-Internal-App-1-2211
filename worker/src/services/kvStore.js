@@ -43,7 +43,7 @@ export class KVStore {
     await this.kv.put("SYSTEM_LOCK", JSON.stringify({
       locked: true,
       expires_at: now + (3 * 60 * 1000)
-    }));
+    }), { expirationTtl: 300 });
     return true;
   }
 

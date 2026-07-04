@@ -173,10 +173,16 @@ export default function Dashboard() {
             <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Dry Run Mode</span>
           </label>
 
+          {systemLock.locked && (
+            <div className="flex items-center space-x-2 px-3 py-1 bg-amber-500/20 border border-amber-500/30 rounded-lg">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+              <span className="text-xs font-bold text-amber-500">System Locked: Cron Running</span>
+            </div>
+          )}
           <button
             onClick={handleManualOrchestration}
-            disabled={orchestrating}
-            className="flex items-center space-x-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-600/20"
+            disabled={orchestrating || systemLock.locked}
+            className={`flex items-center space-x-2 px-6 py-2.5 ${orchestrating || systemLock.locked ? 'bg-indigo-600/50 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500'} text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-600/20`}
           >
             {orchestrating ? <SafeIcon icon={FiLoader} className="animate-spin" /> : <SafeIcon icon={FiZap} />}
             <span>{orchestrating ? 'Orchestrating Swarm...' : 'Trigger Global Scrape'}</span>

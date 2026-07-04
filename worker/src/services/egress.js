@@ -50,8 +50,16 @@ export class Egress {
    * worker responds to the trigger.
    */
   async transmit(records, isDryRun = false) {
+    const trimmedRecords = records.map(rec => {
+      const trimmed = {};
+      for (const [key, value] of Object.entries(rec)) {
+        trimmed[key] = typeof value === 'string' ? value.trim() : value;
+      }
+      return trimmed;
+    });
+
     const validRecords = [];
-    for (const rec of records) {
+    for (const rec of trimmedRecords) {
       const formatted = await this.validateAndFormatRecord(rec);
       if (formatted) validRecords.push(formatted);
     }
