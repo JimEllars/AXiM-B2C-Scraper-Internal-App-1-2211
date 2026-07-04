@@ -30,6 +30,28 @@ export class KVStore {
     return data;
   }
 
+  async acquireSystemLock() {
+    if (!this.kv) return true;
+
+    const lockData = await this.kv.get("SYSTEM_LOCK", "json");
+    const now = Date.now();
+
+    if (lockData && lockData.locked && lockData.expires_at > now) {
+      return false;
+    }
+
+    await this.kv.put("SYSTEM_LOCK", JSON.stringify({
+      locked: true,
+      expires_at: now + (3 * 60 * 1000)
+    }));
+    return true;
+  }
+
+  async releaseSystemLock() {
+    if (!this.kv) return;
+    await this.kv.delete("SYSTEM_LOCK");
+  }
+
   async acquireLock(domainHash, state) {
     if (!this.kv) return true; // Fail open if no KV configured
 
@@ -69,7 +91,9 @@ export class KVStore {
       }
     }
 
-    return states;
+    const systemLock = await this.kv.get("SYSTEM_LOCK", "json");
+
+    return { states, systemLock: systemLock || { locked: false, expires_at: null } };
   }
 
   async releaseLockAndCommit(domainHash, state, success, newCursor = null) {
