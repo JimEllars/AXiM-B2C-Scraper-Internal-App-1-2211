@@ -1,6 +1,6 @@
 name = "axim-b2c-scraper-node"
 main = "src/index.js"
-compatibility_date = "2024-06-27"
+compatibility_date = "2024-07-06"
 workers_dev = false
 
 # Phase II: State Management Ledger Binding
@@ -12,6 +12,7 @@ preview_id = "db43428b35d648b5975bcf4faff6d9ef"
 # Plaintext Environment Variables
 [vars]
 ENVIRONMENT = "production"
+FRONTEND_URL = ""
 ENRICHMENT_BRIDGE_URL = "https://api.axim.us.com/v1/webhooks/enrich"
 TELEMETRY_ENDPOINT = "https://api.axim.us.com/v1/telemetry/collect"
 TARGET_BATCH_SIZE = "100"
