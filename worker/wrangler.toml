@@ -22,7 +22,7 @@ DEFAULT_CRON_TARGET_URL = "https://example.com/target"
 # INSTRUCTIONS FOR SENSITIVE SECRETS:
 # Do NOT hardcode sensitive API keys or tokens in this file.
 # Use the `wrangler secret put <KEY_NAME>` command to set the following:
-# - PROXY_PROVIDER_KEY: External proxy API key (e.g., ScraperAPI)
+# - APIFY_API_TOKEN: External proxy API key for Apify Integration
 # - AXIM_INTERNAL_KEY: Internal key for Bridge and Telemetry access
 # - DASHBOARD_ACCESS_TOKEN: Token to authenticate node access requests
 
