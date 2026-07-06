@@ -49,7 +49,7 @@ export class Egress {
    * to ensure background egress completes successfully after the
    * worker responds to the trigger.
    */
-  async transmit(records, isDryRun = false) {
+  async transmit(records, isDryRun = false, runId = null) {
     const trimmedRecords = records.map(rec => {
       const trimmed = {};
       for (const [key, value] of Object.entries(rec)) {
@@ -68,7 +68,7 @@ export class Egress {
 
     const payload = {
       source: "AXIM_INTERNAL_B2C_SCRAPER",
-      batch_id: crypto.randomUUID(),
+      batch_id: runId || crypto.randomUUID(),
       records: validRecords
     };
 

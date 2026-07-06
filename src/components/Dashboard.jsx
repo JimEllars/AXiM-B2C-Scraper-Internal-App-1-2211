@@ -173,6 +173,13 @@ export default function Dashboard() {
             <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Dry Run Mode</span>
           </label>
 
+          {(orchestrating && dryRun) && (
+            <div className="flex items-center space-x-2 px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-lg shadow-lg shadow-purple-500/10">
+              <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
+              <span className="text-xs font-bold text-purple-400 tracking-wider">TEST MODE - NO EGRESS</span>
+            </div>
+          )}
+
           {systemLock.locked && (
             <div className="flex items-center space-x-2 px-3 py-1 bg-amber-500/20 border border-amber-500/30 rounded-lg">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>

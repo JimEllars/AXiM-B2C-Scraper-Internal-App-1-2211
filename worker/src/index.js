@@ -48,7 +48,7 @@ export default {
     ctx.waitUntil(
       this.executeScrapeCycle(env, ctx, { source: 'CRON_SCHEDULE', targetUrl })
         .then(async (metrics) => {
-          await telemetry.report("CRON_END", "LOW", "edge_worker", `Cron execution finished. Records: ${metrics?.recordsProcessed || 0}, Final Cursor: ${metrics?.finalCursor || 'Unknown'}`);
+          await telemetry.report("CRON_END", "LOW", "edge_worker", `Cron execution finished. Records: ${metrics?.recordsProcessed || 0}, Final Cursor: ${metrics?.finalCursor || 'Unknown'}, RunId: ${metrics?.runId || 'None'}`);
         })
         .catch(async (err) => {
           await telemetry.report("CRON_END_ERROR", "HIGH", "edge_worker", `Cron execution failed: ${err.message}`);
@@ -239,9 +239,11 @@ export default {
 
     // 2. Health Check
     if (url.pathname === "/health") {
+      const configured = !!(env.APIFY_API_TOKEN && env.AXIM_INTERNAL_KEY);
       return new Response(JSON.stringify({
         status: "ONLINE",
         load: "PASSIVE",
+        configured,
         timestamp: new Date().toISOString()
       }), {
         status: 200,
@@ -260,6 +262,12 @@ export default {
     const scraper = new ScraperAPI(env);
     const kv = new KVStore(env);
     const egress = new Egress(env);
+
+    if (!env.APIFY_API_TOKEN || !env.AXIM_INTERNAL_KEY) {
+      await telemetry.report("missing_production_secrets", "HIGH", "edge_worker", "Required production secrets APIFY_API_TOKEN or AXIM_INTERNAL_KEY are missing.");
+      await kv.releaseSystemLock();
+      throw new Error("Missing required production secrets.");
+    }
     
     await telemetry.report("execution_start", "LOW", "edge_worker", `Source: ${config.source}`);
 
@@ -335,12 +343,12 @@ export default {
         }
 
         await kv.releaseLockAndCommit(egressDomainHash, state, true, fallbackCursor);
-        return { recordsProcessed: 0, finalCursor: fallbackCursor };
+        return { recordsProcessed: 0, finalCursor: fallbackCursor, runId: rawData?.runId };
       }
 
       // Format & Egress
       ctx.waitUntil(
-        egress.transmit(rawData.records, config.dryRun)
+        egress.transmit(rawData.records, config.dryRun, rawData.runId)
           .then(success => {
             if (!success) telemetry.report("egress_failure", "HIGH", "egress_bridge", "Failed to transmit payload.");
           })
@@ -350,7 +358,7 @@ export default {
       await kv.releaseLockAndCommit(egressDomainHash, state, true, rawData.next_cursor);
       await telemetry.report("execution_complete", "LOW", "edge_worker", `Batch processed successfully via ${config.source}`);
 
-      return { recordsProcessed: rawData.records.length, finalCursor: rawData.next_cursor };
+      return { recordsProcessed: rawData.records.length, finalCursor: rawData.next_cursor, runId: rawData.runId };
 
     } catch (error) {
       await telemetry.report("execution_error", "HIGH", "edge_worker", error.message);
