@@ -39,7 +39,7 @@ export class ScraperAPI {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        targetUrl: targetUrl
+        startUrls: [{ url: targetUrl }]
       }),
       signal
     });
