@@ -58,7 +58,7 @@ export default {
 
 
   async fetch(request, env, ctx) {
-    const corsOrigin = env.ENVIRONMENT === 'local' ? '*' : (env.FRONTEND_URL || '*');
+    const corsOrigin = env.ENVIRONMENT === 'local' ? '*' : env.FRONTEND_URL;
     const url = new URL(request.url);
     // Handle CORS preflight requests
     if (request.method === "OPTIONS") {
