@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run lint && vite build",
+    "build:ui": "vite build",
+    "deploy:ui": "wrangler pages deploy dist",
+    "deploy:worker": "cd worker && wrangler deploy",
     "lint": "eslint .",
     "lint:error": "eslint . --quiet",
     "preview": "vite preview"

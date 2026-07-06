@@ -58,12 +58,13 @@ export default {
 
 
   async fetch(request, env, ctx) {
+    const corsOrigin = env.ENVIRONMENT === 'local' ? '*' : (env.FRONTEND_URL || '*');
     const url = new URL(request.url);
     // Handle CORS preflight requests
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
-          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Origin": corsOrigin,
           "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type, Authorization",
         }
@@ -78,7 +79,7 @@ export default {
       if (authHeader !== `Bearer ${env.DASHBOARD_ACCESS_TOKEN}`) {
         return new Response(JSON.stringify({ error: "Unauthorized Node Access" }), {
           status: 401,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin }
         });
       }
 
@@ -95,7 +96,7 @@ export default {
           status: 200,
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*"
+            "Access-Control-Allow-Origin": corsOrigin
           }
         });
       }
@@ -123,7 +124,7 @@ export default {
           status: 202,
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*"
+            "Access-Control-Allow-Origin": corsOrigin
           }
         });
       }
@@ -151,7 +152,7 @@ export default {
             status: 202,
             headers: {
               "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*"
+              "Access-Control-Allow-Origin": corsOrigin
             }
           });
       }
@@ -177,7 +178,7 @@ export default {
             status: 202,
             headers: {
               "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*"
+              "Access-Control-Allow-Origin": corsOrigin
             }
           });
       }
@@ -191,7 +192,7 @@ export default {
       if (authHeader !== `Bearer ${env.DASHBOARD_ACCESS_TOKEN}`) {
         return new Response(JSON.stringify({ error: "Unauthorized Node Access" }), { 
           status: 401,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin }
         });
       }
 
@@ -209,7 +210,7 @@ export default {
         status: "ACKNOWLEDGED",
         node: "AXIM_ONYX_MK3",
         job_id: crypto.randomUUID()
-      }), { status: 202, headers: { "Access-Control-Allow-Origin": "*" } });
+      }), { status: 202, headers: { "Access-Control-Allow-Origin": corsOrigin } });
     }
 
 
@@ -220,7 +221,7 @@ export default {
       if (authHeader !== `Bearer ${env.DASHBOARD_ACCESS_TOKEN}`) {
         return new Response(JSON.stringify({ error: "Unauthorized Node Access" }), {
           status: 401,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin }
         });
       }
 
@@ -231,7 +232,7 @@ export default {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*"
+          "Access-Control-Allow-Origin": corsOrigin
         }
       });
     }
@@ -246,12 +247,12 @@ export default {
         status: 200,
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*"
+          "Access-Control-Allow-Origin": corsOrigin
         }
       });
     }
 
-    return new Response("AXiM Onyx Node: Awaiting Orchestration", { status: 404, headers: { "Access-Control-Allow-Origin": "*" } });
+    return new Response("AXiM Onyx Node: Awaiting Orchestration", { status: 404, headers: { "Access-Control-Allow-Origin": corsOrigin } });
   },
 
   async executeScrapeCycle(env, ctx, config) {
