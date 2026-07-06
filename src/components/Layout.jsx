@@ -17,6 +17,15 @@ export default function Layout() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [notifications, setNotifications] = useState([]);
 
+  useEffect(() => {
+    window.addNotification = (title, message, type = 'info') => {
+      const id = Date.now();
+      setNotifications(prev => [...prev, { id, title, message, type }]);
+      setTimeout(() => removeNotification(id), 6000);
+    };
+    return () => { delete window.addNotification; };
+  }, []);
+
   const addNotification = (title, message, type = 'info') => {
     const id = Date.now();
     setNotifications(prev => [...prev, { id, title, message, type }]);

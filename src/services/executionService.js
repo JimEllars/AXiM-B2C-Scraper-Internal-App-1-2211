@@ -38,7 +38,12 @@ export const executionService = {
       });
 
       if (!response.ok) {
-        throw new Error(`Worker responded with HTTP ${response.status}`);
+        let errMsg = `Worker responded with HTTP ${response.status}`;
+        try {
+          const errData = await response.json();
+          if (errData.error) errMsg = errData.error;
+        } catch(e) { /* ignore parse error */ }
+        throw new Error(errMsg);
       }
 
       const result = await response.json();
@@ -46,13 +51,13 @@ export const executionService = {
       await queueService.enqueue(target.url, 'HIGH');
       await telemetryService.log('success', `Orchestrated high-priority extraction for: ${target.url}`, 'SCHEDULER');
 
-      // 4. Simulate immediate batch logging for UI feedback
-      const records = Math.floor(Math.random() * 150) + 50;
+      // 4. Log batch result using real worker response data if available
+      const records = result.recordsProcessed || 0;
       await batchService.log({
         target: target.url,
         records,
-        status: 'COMPLETED',
-        bridge_id: `b2c_${Math.random().toString(36).substr(2, 9)}`
+        status: records > 0 ? 'COMPLETED' : 'FAILED',
+        bridge_id: result.runId || ''
       });
 
       return { success: true, target: target.url, records, workerJobId: result.job_id };

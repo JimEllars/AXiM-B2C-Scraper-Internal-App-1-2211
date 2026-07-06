@@ -21,8 +21,9 @@ export class ScraperAPI {
       parentSignal.addEventListener('abort', () => controller.abort());
     }
 
+    let timeoutId;
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         controller.abort();
         const error = new Error("APIFY_TIMEOUT");
         error.name = "APIFY_TIMEOUT";
@@ -111,6 +112,6 @@ export class ScraperAPI {
     };
     })();
 
-    return Promise.race([executionPromise, timeoutPromise]);
+    return Promise.race([executionPromise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
   }
 }

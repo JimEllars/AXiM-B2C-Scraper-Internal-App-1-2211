@@ -16,14 +16,8 @@ export const telemetryService = {
         time: new Date(row[4])
       })).reverse();
     } catch (e) {
-      console.warn("Failed to fetch telemetry, using mock data", e);
-      return Array.from({length: 10}).map((_, i) => ({
-        id: `mock-${i}`,
-        type: i % 3 === 0 ? 'error' : i % 2 === 0 ? 'success' : 'info',
-        message: `System node execution ${i} state reported.`,
-        origin: 'edge_worker',
-        time: new Date(Date.now() - i * 60000)
-      }));
+      console.error("Failed to fetch telemetry", e);
+      return [];
     }
   },
 

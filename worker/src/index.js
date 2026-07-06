@@ -198,19 +198,27 @@ export default {
 
       const payload = await request.json();
       
-      // TRIGGER TYPE: REQUEST (External or Manual UI)
-      ctx.waitUntil(this.executeScrapeCycle(env, ctx, { 
-        source: payload.source || 'EXTERNAL_API',
-        targetUrl: payload.targetUrl,
-        priority: payload.priority || 'NORMAL',
-        dryRun: payload.dry_run || false
-      }));
+      try {
+        if (!env.APIFY_API_TOKEN || !env.AXIM_INTERNAL_KEY) {
+          throw new Error("Missing required production secrets.");
+        }
 
-      return new Response(JSON.stringify({ 
-        status: "ACKNOWLEDGED",
-        node: "AXIM_ONYX_MK3",
-        job_id: crypto.randomUUID()
-      }), { status: 202, headers: { "Access-Control-Allow-Origin": corsOrigin } });
+        const result = await this.executeScrapeCycle(env, ctx, {
+          source: payload.source || 'EXTERNAL_API',
+          targetUrl: payload.targetUrl,
+          priority: payload.priority || 'NORMAL',
+          dryRun: payload.dry_run || false
+        });
+
+        return new Response(JSON.stringify({
+          status: "ACKNOWLEDGED",
+          node: "AXIM_ONYX_MK3",
+          job_id: crypto.randomUUID(),
+          ...result
+        }), { status: 202, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin } });
+      } catch (err) {
+         return new Response(JSON.stringify({ error: err.message }), { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin } });
+      }
     }
 
 
@@ -307,11 +315,13 @@ export default {
       } catch (scrapeErr) {
         if (scrapeErr.name === 'AbortError' || scrapeErr.name === 'APIFY_TIMEOUT') {
           await telemetry.report("timeout_error", "HIGH", "scraper_api", `Timeout exceeded for ${targetUrl}`);
+          await kv.releaseLockAndCommit(egressDomainHash, state, false);
+          throw new Error("APIFY_TIMEOUT");
         } else {
           await telemetry.report("proxy_rejection", "HIGH", "scraper_api", scrapeErr.message);
+          await kv.releaseLockAndCommit(egressDomainHash, state, false);
+          throw scrapeErr;
         }
-        await kv.releaseLockAndCommit(egressDomainHash, state, false);
-        return { recordsProcessed: 0, finalCursor: state.pagination_cursor };
       }
 
       let rawData;
@@ -365,7 +375,7 @@ export default {
 
     } catch (error) {
       await telemetry.report("execution_error", "HIGH", "edge_worker", error.message);
-      return { recordsProcessed: 0, finalCursor: null };
+      throw error;
     } finally {
       await kv.releaseSystemLock();
     }
