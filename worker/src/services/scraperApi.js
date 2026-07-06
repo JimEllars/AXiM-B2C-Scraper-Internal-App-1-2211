@@ -91,7 +91,7 @@ export class ScraperAPI {
     return {
       ok: true,
       status: 200,
-      json: async () => ({ records: mappedRecords, next_cursor: null })
+      json: async () => ({ records: mappedRecords, next_cursor: null, runId: runId })
     };
   }
 }
