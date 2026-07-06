@@ -117,6 +117,9 @@ export default function Dashboard() {
       await loadDashboardData();
     } catch (err) {
       console.error("Orchestration failed:", err);
+      if (window.addNotification) {
+         window.addNotification('Orchestration Failed', err.message, 'error');
+      }
     } finally {
       setOrchestrating(false);
     }
