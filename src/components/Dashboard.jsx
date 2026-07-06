@@ -108,6 +108,9 @@ export default function Dashboard() {
   };
 
   const handleManualOrchestration = async () => {
+    setSystemOffline(false);
+    setSystemLock({ locked: false, expires_at: null });
+    setKvStates([]);
     setOrchestrating(true);
     try {
       await executionService.triggerManualOrchestration(dryRun);
