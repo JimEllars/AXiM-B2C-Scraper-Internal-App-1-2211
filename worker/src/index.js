@@ -299,16 +299,13 @@ export default {
       try {
         await scraper.executeJitter();
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), parseInt(env.MAX_EXECUTION_TIME_MS || "25000"));
-
         response = await scraper.fetchWithEvasion(targetUrl, state.pagination_cursor, controller.signal);
-        clearTimeout(timeoutId);
 
         if (!response.ok) {
           throw new Error(`Proxy rejection: HTTP ${response.status}`);
         }
       } catch (scrapeErr) {
-        if (scrapeErr.name === 'AbortError') {
+        if (scrapeErr.name === 'AbortError' || scrapeErr.name === 'APIFY_TIMEOUT') {
           await telemetry.report("timeout_error", "HIGH", "scraper_api", `Timeout exceeded for ${targetUrl}`);
         } else {
           await telemetry.report("proxy_rejection", "HIGH", "scraper_api", scrapeErr.message);
@@ -356,7 +353,13 @@ export default {
       );
 
       await kv.releaseLockAndCommit(egressDomainHash, state, true, rawData.next_cursor);
-      await telemetry.report("execution_complete", "LOW", "edge_worker", `Batch processed successfully via ${config.source}`);
+
+      let extraPayload = {};
+      if (config.dryRun) {
+        extraPayload = { sample_records: rawData.records.slice(0, 2) };
+      }
+
+      await telemetry.report("execution_complete", "LOW", "edge_worker", `Batch processed successfully via ${config.source}`, extraPayload);
 
       return { recordsProcessed: rawData.records.length, finalCursor: rawData.next_cursor, runId: rawData.runId };
 

@@ -14,7 +14,23 @@ export class ScraperAPI {
     await new Promise(resolve => setTimeout(resolve, randomDelay));
   }
 
-  async fetchWithEvasion(targetUrl, sessionId, signal) {
+  async fetchWithEvasion(targetUrl, sessionId, parentSignal) {
+    const controller = new AbortController();
+    const signal = controller.signal;
+    if (parentSignal) {
+      parentSignal.addEventListener('abort', () => controller.abort());
+    }
+
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        controller.abort();
+        const error = new Error("APIFY_TIMEOUT");
+        error.name = "APIFY_TIMEOUT";
+        reject(error);
+      }, 25000); // 25 seconds timeout
+    });
+
+    const executionPromise = (async () => {
     // 1. Trigger Apify Run
     const runResponse = await fetch(`https://api.apify.com/v2/acts/${this.actorId}/runs?token=${this.env.APIFY_API_TOKEN}`, {
       method: 'POST',
@@ -93,5 +109,8 @@ export class ScraperAPI {
       status: 200,
       json: async () => ({ records: mappedRecords, next_cursor: null, runId: runId })
     };
+    })();
+
+    return Promise.race([executionPromise, timeoutPromise]);
   }
 }

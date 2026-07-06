@@ -8,7 +8,7 @@ export class Telemetry {
     this.projectId = "AXIM_B2C_SCRAPER";
   }
 
-  async report(eventType, severity, componentOrigin, errorMessage) {
+  async report(eventType, severity, componentOrigin, errorMessage, extraPayload = {}) {
     const payload = {
       telemetry_envelope: {
         project_id: this.projectId,
@@ -19,7 +19,8 @@ export class Telemetry {
         event_type: eventType,
         severity: severity, // "HIGH", "MEDIUM", "LOW"
         component_origin: componentOrigin,
-        error_message: errorMessage
+        error_message: errorMessage,
+        ...extraPayload
       }
     };
 
