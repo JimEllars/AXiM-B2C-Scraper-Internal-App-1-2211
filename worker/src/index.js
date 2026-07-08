@@ -221,6 +221,104 @@ export default {
       }
     }
 
+    // WEBHOOK HANDLER
+    if (url.pathname === "/api/apify-webhook" && request.method === "POST") {
+      try {
+        const payload = await request.json();
+
+        // Ensure this is a SUCCEEDED event
+        if (payload.eventType !== 'ACTOR.RUN.SUCCEEDED') {
+           return new Response(JSON.stringify({ status: "IGNORED" }), { status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin } });
+        }
+
+        const runId = payload.eventData.actorRunId;
+        const defaultDatasetId = payload.resource.defaultDatasetId;
+
+        const telemetry = new Telemetry(env);
+        const egress = new Egress(env);
+
+        ctx.waitUntil((async () => {
+          try {
+            const datasetResponse = await fetch(`https://api.apify.com/v2/datasets/${defaultDatasetId}/items?token=${env.APIFY_API_TOKEN}`);
+            if (datasetResponse.ok) {
+              const rawItems = await datasetResponse.json();
+
+              // Map Dataset Schema
+              const mappedRecords = rawItems.map(item => ({
+                first_name: item.first_name || '',
+                last_name: item.last_name || '',
+                email: item.email || '',
+                phone: item.phone || '',
+                address: item.address || '',
+                origin_url: item.origin_url || 'Unknown' // Needs to be pulled from dataset or passed via webhook
+              }));
+
+              await egress.transmit(mappedRecords, false, runId);
+              await telemetry.report("SCRAPE_COMPLETE", "LOW", "edge_worker", `Successfully processed dataset for runId: ${runId}`);
+            } else {
+              await telemetry.report("DATASET_FETCH_ERROR", "HIGH", "edge_worker", `Failed to fetch dataset ${defaultDatasetId}: ${datasetResponse.status}`);
+            }
+          } catch(e) {
+            await telemetry.report("WEBHOOK_PROCESSING_ERROR", "HIGH", "edge_worker", e.message);
+          }
+        })());
+
+        return new Response(JSON.stringify({ status: "ACKNOWLEDGED" }), { status: 202, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin } });
+
+      } catch (e) {
+        return new Response(JSON.stringify({ error: "Invalid webhook payload" }), { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin } });
+      }
+    }
+
+    // ONYX TRIGGER
+    if (url.pathname === "/api/onyx-trigger" && request.method === "POST") {
+      const authHeader = request.headers.get("Authorization");
+
+      if (authHeader !== `Bearer ${env.AXIM_INTERNAL_KEY}`) {
+        return new Response(JSON.stringify({ error: "Unauthorized Node Access" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin }
+        });
+      }
+
+      const payload = await request.json();
+
+      try {
+        if (!env.APIFY_API_TOKEN || !env.AXIM_INTERNAL_KEY) {
+          throw new Error("Missing required production secrets.");
+        }
+
+        if (!payload.target_url) {
+           throw new Error("Missing target_url.");
+        }
+
+        const telemetry = new Telemetry(env);
+        const scraper = new ScraperAPI(env);
+        const workerHost = url.hostname;
+        const webhookUrl = `https://${workerHost}/api/apify-webhook`;
+
+        await telemetry.report("ONYX_INTERCEPT_ACTIVATED", "HIGH", "edge_worker", `Onyx Mk3 triggered for URL: ${payload.target_url}`);
+
+        const response = await scraper.fetchWithEvasion(payload.target_url, null, null, webhookUrl);
+
+        if (!response.ok) {
+           throw new Error(`Apify trigger failed: ${response.status}`);
+        }
+
+        const rawData = await response.json();
+
+        await telemetry.report("APIFY_RUN_STARTED", "LOW", "edge_worker", `Apify Run Started: ${rawData.runId}`);
+
+        return new Response(JSON.stringify({
+          status: "ACCEPTED",
+          node: "AXIM_ONYX_MK3",
+          job_id: crypto.randomUUID(),
+          runId: rawData.runId
+        }), { status: 202, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin } });
+      } catch (err) {
+         return new Response(JSON.stringify({ error: err.message }), { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin } });
+      }
+    }
 
     // 3. KV State Polling Endpoint
     if (url.pathname === "/api/state" && request.method === "GET") {
@@ -306,8 +404,13 @@ export default {
       let response;
       try {
         await scraper.executeJitter();
-        const controller = new AbortController();
-        response = await scraper.fetchWithEvasion(targetUrl, state.pagination_cursor, controller.signal);
+        // Construct webhookUrl dynamically from environment if possible, or fallback.
+        // During cron, it may be tricky to get the exact hostname, but typically configured via env variable.
+        // Assuming WORKER_HOST is set in wrangler.toml or env.
+        const workerHost = env.WORKER_HOST || "axim-scraper-node.workers.dev";
+        const webhookUrl = `https://${workerHost}/api/apify-webhook`;
+
+        response = await scraper.fetchWithEvasion(targetUrl, state.pagination_cursor, null, webhookUrl);
 
         if (!response.ok) {
           throw new Error(`Proxy rejection: HTTP ${response.status}`);
@@ -333,45 +436,13 @@ export default {
         return { recordsProcessed: 0, finalCursor: state.pagination_cursor };
       }
 
-      if (!rawData || !rawData.records || rawData.records.length === 0) {
-        await telemetry.report("dom_mapping_failed_zero_records", "HIGH", "scraper_api", `No records found for ${targetUrl}`);
+      // Log the start of the Apify Run
+      await telemetry.report("APIFY_RUN_STARTED", "LOW", "edge_worker", `Apify Run Started: ${rawData.runId}`);
 
-        // Fallback cursor advancement
-        let fallbackCursor = rawData?.next_cursor;
-        if (!fallbackCursor) {
-          const currentCursor = state.pagination_cursor || "page=1";
-          const pageMatch = currentCursor.match(/page=(\d+)/);
-          if (pageMatch) {
-            const nextPage = parseInt(pageMatch[1]) + 1;
-            fallbackCursor = currentCursor.replace(`page=${pageMatch[1]}`, `page=${nextPage}`);
-          } else {
-            fallbackCursor = currentCursor + "&page=2";
-          }
-        }
-
-        await kv.releaseLockAndCommit(egressDomainHash, state, true, fallbackCursor);
-        return { recordsProcessed: 0, finalCursor: fallbackCursor, runId: rawData?.runId };
-      }
-
-      // Format & Egress
-      ctx.waitUntil(
-        egress.transmit(rawData.records, config.dryRun, rawData.runId)
-          .then(success => {
-            if (!success) telemetry.report("egress_failure", "HIGH", "egress_bridge", "Failed to transmit payload.");
-          })
-          .catch(e => telemetry.report("egress_error", "HIGH", "egress_bridge", e.message))
-      );
-
+      // Release lock since Apify is running async now
       await kv.releaseLockAndCommit(egressDomainHash, state, true, rawData.next_cursor);
 
-      let extraPayload = {};
-      if (config.dryRun) {
-        extraPayload = { sample_records: rawData.records.slice(0, 2) };
-      }
-
-      await telemetry.report("execution_complete", "LOW", "edge_worker", `Batch processed successfully via ${config.source}`, extraPayload);
-
-      return { recordsProcessed: rawData.records.length, finalCursor: rawData.next_cursor, runId: rawData.runId };
+      return { recordsProcessed: 0, finalCursor: rawData.next_cursor, runId: rawData.runId, status: "ACCEPTED" };
 
     } catch (error) {
       await telemetry.report("execution_error", "HIGH", "edge_worker", error.message);
