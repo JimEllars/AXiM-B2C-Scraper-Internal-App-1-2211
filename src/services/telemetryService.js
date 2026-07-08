@@ -1,20 +1,17 @@
-import { ensureTab, getRows, appendRow } from '../lib/googleSheets';
+const WORKER_URL = (import.meta.env.VITE_WORKER_URL || 'http://localhost:8787') + '/api/telemetry';
+const TOKEN = import.meta.env.VITE_DASHBOARD_ACCESS_TOKEN;
 
-const TAB = 'Telemetry';
-const HEADERS = ['id', 'type', 'message', 'origin', 'created_at'];
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${TOKEN}`
+};
 
 export const telemetryService = {
   async getAll() {
     try {
-      await ensureTab(TAB, HEADERS);
-      const rows = await getRows(`${TAB}!A2:E`);
-      return rows.map(row => ({
-        id: row[0],
-        type: row[1],
-        message: row[2],
-        origin: row[3],
-        time: new Date(row[4])
-      })).reverse();
+      const res = await fetch(WORKER_URL, { headers });
+      if (!res.ok) throw new Error('Failed to fetch telemetry');
+      return await res.json();
     } catch (e) {
       console.error("Failed to fetch telemetry", e);
       return [];
@@ -23,15 +20,12 @@ export const telemetryService = {
 
   async log(type, message, origin) {
     try {
-      await ensureTab(TAB, HEADERS);
-      const entry = [
-        crypto.randomUUID(),
-        type,
-        message,
-        origin,
-        new Date().toISOString()
-      ];
-      await appendRow(`${TAB}!A:E`, entry);
+      const res = await fetch(WORKER_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ type, message, origin })
+      });
+      if (!res.ok) throw new Error('Failed to log telemetry');
     } catch (e) {
       console.error("Failed to log telemetry", e);
     }

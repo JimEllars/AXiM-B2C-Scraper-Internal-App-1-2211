@@ -1,30 +1,24 @@
-import { ensureTab, getRows, appendRow } from '../lib/googleSheets';
+const WORKER_URL = (import.meta.env.VITE_WORKER_URL || 'http://localhost:8787') + '/api/data';
+const TOKEN = import.meta.env.VITE_DASHBOARD_ACCESS_TOKEN;
 
-const TAB = 'ExtractedData';
-const HEADERS = ['id', 'batch_id', 'source_url', 'payload_json', 'created_at'];
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${TOKEN}`
+};
 
 export const dataService = {
   async getAll() {
-    await ensureTab(TAB, HEADERS);
-    const rows = await getRows(`${TAB}!A2:E`);
-    return rows.map(row => ({
-      id: row[0],
-      batchId: row[1],
-      source: row[2],
-      payload: JSON.parse(row[3] || '{}'),
-      time: new Date(row[4])
-    })).reverse();
+    const res = await fetch(WORKER_URL, { headers });
+    if (!res.ok) throw new Error('Failed to fetch data');
+    return res.json();
   },
 
   async ingest(batchId, source, payload) {
-    await ensureTab(TAB, HEADERS);
-    const entry = [
-      crypto.randomUUID(),
-      batchId,
-      source,
-      JSON.stringify(payload),
-      new Date().toISOString()
-    ];
-    await appendRow(`${TAB}!A:E`, entry);
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ batchId, source, payload })
+    });
+    if (!res.ok) throw new Error('Failed to ingest data');
   }
 };
