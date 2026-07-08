@@ -9,18 +9,27 @@ export default function TelemetryStream() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
-  const pollInterval = useRef(null);
+  const subscriptionRef = useRef(null);
   const endOfStreamRef = useRef(null);
 
   useEffect(() => {
     loadLogs();
     
-    // Auto-refresh every 10 seconds unless paused
-    pollInterval.current = setInterval(() => {
-      if (!isPaused) loadLogs(false);
-    }, 10000);
+    // Realtime Supabase subscription
+    if (!isPaused) {
+      subscriptionRef.current = telemetryService.subscribe((newLog) => {
+        setLogs((prevLogs) => {
+          const updatedLogs = [...prevLogs, newLog];
+          return updatedLogs.sort((a, b) => new Date(a.time || a.created_at) - new Date(b.time || b.created_at)).slice(-100);
+        });
+      });
+    }
 
-    return () => clearInterval(pollInterval.current);
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current(); // Unsubscribe
+      }
+    };
   }, [isPaused]);
 
   useEffect(() => {
@@ -113,7 +122,7 @@ export default function TelemetryStream() {
                   }`}
                 >
                   <div className="col-span-2 opacity-60">
-                    {format(new Date(log.time), 'HH:mm:ss.SSS')}
+                    {format(new Date(log.time || log.created_at || Date.now()), 'HH:mm:ss.SSS')}
                   </div>
                   <div className="col-span-2">
                     <span className="px-2 py-0.5 rounded bg-gray-950 border border-gray-800 text-[9px] font-bold text-indigo-400 uppercase">

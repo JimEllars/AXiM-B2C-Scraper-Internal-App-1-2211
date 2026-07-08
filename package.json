@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@questlabs/react-sdk": "^2.2.92",
-    "@supabase/supabase-js": "^2.39.0",
+    "@supabase/supabase-js": "^2.110.1",
     "date-fns": "4.1.0",
     "echarts": "^5.5.0",
     "echarts-for-react": "^3.0.2",

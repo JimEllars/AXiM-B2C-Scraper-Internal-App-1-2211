@@ -53,7 +53,12 @@ export class Egress {
     const trimmedRecords = records.map(rec => {
       const trimmed = {};
       for (const [key, value] of Object.entries(rec)) {
-        trimmed[key] = typeof value === 'string' ? value.trim() : value;
+        if (key === 'phone' && typeof value === 'string') {
+          // Normalize phone number by stripping all non-numeric characters
+          trimmed[key] = value.replace(/\D/g, '');
+        } else {
+          trimmed[key] = typeof value === 'string' ? value.trim() : value;
+        }
       }
       return trimmed;
     });
