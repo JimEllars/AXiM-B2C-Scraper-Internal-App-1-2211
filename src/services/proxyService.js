@@ -1,42 +1,24 @@
-import { ensureTab, getRows, updateRow, findRowIndexById, appendRow } from '../lib/googleSheets';
+const WORKER_URL = (import.meta.env.VITE_WORKER_URL || 'http://localhost:8787') + '/api/proxies';
+const TOKEN = import.meta.env.VITE_DASHBOARD_ACCESS_TOKEN;
 
-const TAB = 'ProxyNodes';
-const HEADERS = ['id', 'provider', 'region', 'status', 'latency', 'success_rate', 'updated_at'];
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${TOKEN}`
+};
 
 export const proxyService = {
   async getAll() {
-    await ensureTab(TAB, HEADERS);
-    const rows = await getRows(`${TAB}!A2:G`);
-    if (rows.length === 0) {
-      const defaults = [
-        [crypto.randomUUID(), 'ScraperAPI-US', 'US-EAST-1', 'Active', '142ms', '99.2%', new Date().toISOString()],
-        [crypto.randomUUID(), 'BrightData-EU', 'EU-WEST-1', 'Active', '189ms', '98.5%', new Date().toISOString()],
-        [crypto.randomUUID(), 'Oxylabs-Global', 'GLOBAL-RES', 'Degraded', '450ms', '82.1%', new Date().toISOString()]
-      ];
-      for (const row of defaults) await appendRow(`${TAB}!A:G`, row);
-      return defaults.map(r => ({ id: r[0], provider: r[1], region: r[2], status: r[3], latency: r[4], successRate: r[5] }));
-    }
-    return rows.map(row => ({
-      id: row[0],
-      provider: row[1],
-      region: row[2],
-      status: row[3],
-      latency: row[4],
-      successRate: row[5]
-    }));
+    const res = await fetch(WORKER_URL, { headers });
+    if (!res.ok) throw new Error('Failed to fetch proxies');
+    return res.json();
   },
 
   async create(proxy) {
-    await ensureTab(TAB, HEADERS);
-    const entry = [
-      crypto.randomUUID(),
-      proxy.provider,
-      proxy.region,
-      'TestingHandshake',
-      '---',
-      '0%',
-      new Date().toISOString()
-    ];
-    await appendRow(`${TAB}!A:G`, entry);
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(proxy)
+    });
+    if (!res.ok) throw new Error('Failed to create proxy');
   }
 };

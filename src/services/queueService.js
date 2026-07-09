@@ -1,54 +1,41 @@
-import { ensureTab, getRows, appendRow, updateRow, findRowIndexById, deleteRow } from '../lib/googleSheets';
+const WORKER_URL = (import.meta.env.VITE_WORKER_URL || 'http://localhost:8787') + '/api/queue';
+const TOKEN = import.meta.env.VITE_DASHBOARD_ACCESS_TOKEN;
 
-const TAB = 'JobQueue';
-const HEADERS = ['id', 'target_url', 'priority', 'status', 'attempts', 'last_error', 'created_at'];
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${TOKEN}`
+};
 
 export const queueService = {
   async getAll() {
-    await ensureTab(TAB, HEADERS);
-    const rows = await getRows(`${TAB}!A2:G`);
-    return rows.map(row => ({
-      id: row[0],
-      url: row[1],
-      priority: row[2],
-      status: row[3],
-      attempts: parseInt(row[4] || '0'),
-      lastError: row[5],
-      createdAt: new Date(row[6])
-    })).reverse();
+    const res = await fetch(WORKER_URL, { headers });
+    if (!res.ok) throw new Error('Failed to fetch queue');
+    return res.json();
   },
 
   async enqueue(url, priority = 'NORMAL') {
-    await ensureTab(TAB, HEADERS);
-    const entry = [
-      crypto.randomUUID(),
-      url,
-      priority,
-      'PENDING',
-      '0',
-      '',
-      new Date().toISOString()
-    ];
-    await appendRow(`${TAB}!A:G`, entry);
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ url, priority })
+    });
+    if (!res.ok) throw new Error('Failed to enqueue target');
   },
 
   async updateStatus(id, status, error = '') {
-    const idx = await findRowIndexById(TAB, id);
-    if (idx < 0) return;
-    const rows = await getRows(`${TAB}!A${idx}:G${idx}`);
-    const updated = [...rows[0]];
-    updated[3] = status;
-    updated[5] = error;
-    if (status === 'FAILED') updated[4] = (parseInt(updated[4]) + 1).toString();
-    await updateRow(`${TAB}!A${idx}:G${idx}`, updated);
+    const res = await fetch(`${WORKER_URL}/${id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ status, error })
+    });
+    if (!res.ok) throw new Error('Failed to update queue status');
   },
 
   async clearCompleted() {
-    const rows = await this.getAll();
-    for (const row of rows) {
-      if (row.status === 'COMPLETED') {
-        await deleteRow(TAB, row.id);
-      }
-    }
+    const res = await fetch(`${WORKER_URL}/completed`, {
+      method: 'DELETE',
+      headers
+    });
+    if (!res.ok) throw new Error('Failed to clear completed items from queue');
   }
 };

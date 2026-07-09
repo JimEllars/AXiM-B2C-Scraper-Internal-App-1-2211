@@ -43,12 +43,22 @@ export const telemetryService = {
       .channel('axim_telemetry_stream')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'telemetry_logs' }, // Adjust table name if needed
+        { event: 'INSERT', schema: 'public', table: 'telemetry_logs' },
         (payload) => {
           callback(payload.new);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully subscribed to axim_telemetry_stream channel.');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Error subscribing to axim_telemetry_stream channel.');
+        } else if (status === 'TIMED_OUT') {
+          console.error('Subscription to axim_telemetry_stream channel timed out.');
+        } else if (status === 'CLOSED') {
+          console.log('Subscription to axim_telemetry_stream channel closed.');
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);

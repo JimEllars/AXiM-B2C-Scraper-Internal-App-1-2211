@@ -1,27 +1,25 @@
-import { ensureTab, getRows, updateRow, findRowIndexById, appendRow } from '../lib/googleSheets';
+const WORKER_URL = (import.meta.env.VITE_WORKER_URL || 'http://localhost:8787') + '/api/settings';
+const TOKEN = import.meta.env.VITE_DASHBOARD_ACCESS_TOKEN;
 
-const TAB = 'Settings';
-const HEADERS = ['id', 'key', 'value', 'updated_at'];
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${TOKEN}`
+};
 
 export const settingsService = {
   async getAll() {
-    await ensureTab(TAB, HEADERS);
-    const rows = await getRows(`${TAB}!A2:D`);
-    return Object.fromEntries(rows.map(row => [row[1], row[2]]));
+    const res = await fetch(WORKER_URL, { headers });
+    if (!res.ok) throw new Error('Failed to fetch settings');
+    return res.json();
   },
 
   async update(key, value) {
-    await ensureTab(TAB, HEADERS);
-    const id = `setting_${key}`;
-    const idx = await findRowIndexById(TAB, id);
-    
-    const rowData = [id, key, value, new Date().toISOString()];
-    
-    if (idx > 0) {
-      await updateRow(`${TAB}!A${idx}:D${idx}`, rowData);
-    } else {
-      await appendRow(`${TAB}!A:D`, rowData);
-    }
+    const res = await fetch(WORKER_URL, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ key, value })
+    });
+    if (!res.ok) throw new Error('Failed to update setting');
   },
 
   async updateBatch(settings) {

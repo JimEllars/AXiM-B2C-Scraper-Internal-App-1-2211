@@ -1,34 +1,24 @@
-import { ensureTab, getRows, appendRow } from '../lib/googleSheets';
+const WORKER_URL = (import.meta.env.VITE_WORKER_URL || 'http://localhost:8787') + '/api/audit';
+const TOKEN = import.meta.env.VITE_DASHBOARD_ACCESS_TOKEN;
 
-const TAB = 'AuditLogs';
-const HEADERS = ['id', 'action', 'actor', 'component', 'ip_address', 'status', 'created_at'];
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${TOKEN}`
+};
 
 export const auditService = {
   async getAll() {
-    await ensureTab(TAB, HEADERS);
-    const rows = await getRows(`${TAB}!A2:G`);
-    return rows.map(row => ({
-      id: row[0],
-      action: row[1],
-      actor: row[2],
-      component: row[3],
-      ip: row[4],
-      status: row[5],
-      time: new Date(row[6])
-    })).reverse();
+    const res = await fetch(WORKER_URL, { headers });
+    if (!res.ok) throw new Error('Failed to fetch audit logs');
+    return res.json();
   },
 
   async log(action, actor = 'SYSTEM_ADMIN', component = 'CORE', status = 'SUCCESS') {
-    await ensureTab(TAB, HEADERS);
-    const entry = [
-      crypto.randomUUID(),
-      action,
-      actor,
-      component,
-      '127.0.0.1', // Simulated IP
-      status,
-      new Date().toISOString()
-    ];
-    await appendRow(`${TAB}!A:G`, entry);
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ action, actor, component, status })
+    });
+    if (!res.ok) throw new Error('Failed to log audit event');
   }
 };
