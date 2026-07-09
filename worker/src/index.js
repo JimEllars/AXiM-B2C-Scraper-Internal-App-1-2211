@@ -224,7 +224,30 @@ export default {
     // WEBHOOK HANDLER
     if (url.pathname === "/api/apify-webhook" && request.method === "POST") {
       try {
-        const payload = await request.json();
+        const rawBody = await request.text();
+        const signatureHeader = request.headers.get("x-apify-signature");
+
+        if (!signatureHeader || !env.APIFY_WEBHOOK_SECRET) {
+          return new Response(JSON.stringify({ error: "Unauthorized: Missing signature or secret" }), { status: 401, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin } });
+        }
+
+        // Validate Signature using WebCrypto
+        const enc = new TextEncoder();
+        const key = await crypto.subtle.importKey(
+          'raw',
+          enc.encode(env.APIFY_WEBHOOK_SECRET),
+          { name: 'HMAC', hash: 'SHA-256' },
+          false,
+          ['sign']
+        );
+        const signatureBuffer = await crypto.subtle.sign('HMAC', key, enc.encode(rawBody));
+        const computedSignature = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
+
+        if (computedSignature !== signatureHeader) {
+          return new Response(JSON.stringify({ error: "Unauthorized: Invalid signature" }), { status: 401, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin } });
+        }
+
+        const payload = JSON.parse(rawBody);
 
         // Ensure this is a SUCCEEDED event
         if (payload.eventType !== 'ACTOR.RUN.SUCCEEDED') {
