@@ -43,7 +43,7 @@ export const telemetryService = {
       .channel('axim_telemetry_stream')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'telemetry_logs' },
+        { event: 'INSERT', schema: 'public', table: 'axim_telemetry_stream' },
         (payload) => {
           callback(payload.new);
         }

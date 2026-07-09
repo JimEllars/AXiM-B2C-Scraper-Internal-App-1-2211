@@ -63,38 +63,38 @@ export class ScraperAPI {
       })
     };
   }
+}
 
-  /**
-   * Onyx LLM Proxy Skeleton
-   * Routes raw unstructured text to our internal AXiM LLM proxy for schema-rigid extraction.
-   */
-  async parseWithOnyx(rawBlob) {
-    const workerHost = this.env.WORKER_HOST || "axim-scraper-node.workers.dev";
-    const proxyUrl = `https://${workerHost}/api/llm-proxy`;
-    const internalKey = this.env.AXIM_INTERNAL_KEY;
+/**
+ * Onyx LLM Proxy Skeleton
+ * Routes raw unstructured text to our internal AXiM LLM proxy for schema-rigid extraction.
+ */
+export async function cognitiveExtractWithOnyx(unstructuredText, env) {
+  const workerHost = env.WORKER_HOST || "axim-scraper-node.workers.dev";
+  const proxyUrl = `https://${workerHost}/api/llm-proxy`;
+  const internalKey = env.AXIM_INTERNAL_KEY;
 
-    if (!internalKey) {
-      throw new Error("Missing AXIM_INTERNAL_KEY for Onyx LLM Proxy.");
-    }
-
-    const systemPrompt = "Return only a JSON object matching this exact schema: { first_name, last_name, phone, email, type: 'B2C_CONSUMER' }. Do not include any additional text or explanations.";
-
-    const response = await fetch(proxyUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${internalKey}`
-      },
-      body: JSON.stringify({
-        system_prompt: systemPrompt,
-        data: rawBlob
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Onyx LLM Proxy failed with status: ${response.status}`);
-    }
-
-    return await response.json();
+  if (!internalKey) {
+    throw new Error("Missing AXIM_INTERNAL_KEY for Onyx LLM Proxy.");
   }
+
+  const systemPrompt = "Return only a JSON object matching this exact schema: { first_name, last_name, phone, email, type: 'B2C_CONSUMER' }. Do not include any additional text or explanations.";
+
+  const response = await fetch(proxyUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${internalKey}`
+    },
+    body: JSON.stringify({
+      system_prompt: systemPrompt,
+      data: unstructuredText
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Onyx LLM Proxy failed with status: ${response.status}`);
+  }
+
+  return await response.json();
 }
