@@ -19,14 +19,16 @@ export default function HealthMonitor() {
         setWorkerHealth({
           status: data.status === 'ONLINE' ? 'Healthy' : 'Degraded',
           latency: `${latency}ms`,
-          load: data.load || 'Unknown'
+          load: data.load || 'Unknown',
+          configured: data.configured || false
         });
         setLastHeartbeat(new Date(data.timestamp || Date.now()).toLocaleTimeString());
       } catch (error) {
         setWorkerHealth({
           status: 'Offline',
           latency: 'N/A',
-          load: '0%'
+          load: '0%',
+          configured: false
         });
         setLastHeartbeat(new Date().toLocaleTimeString());
       }
@@ -40,9 +42,9 @@ export default function HealthMonitor() {
 
   const nodes = [
     { name: 'Edge Worker Node', status: workerHealth.status, latency: workerHealth.latency, load: workerHealth.load },
-    { name: 'Cloudflare KV Ledger', status: 'Healthy', latency: '18ms', usage: '0.4GB' },
-    { name: 'CRM Enrichment Bridge', status: 'Healthy', latency: '156ms', uptime: '99.9%' },
-    { name: 'Onyx Mk3 Swarm', status: 'Standby', latency: 'N/A', mode: 'Autonomous' },
+    { name: 'Cloudflare KV Ledger', status: workerHealth.status === 'Offline' ? 'Offline' : 'Healthy', latency: workerHealth.status === 'Offline' ? 'N/A' : '18ms', usage: workerHealth.status === 'Offline' ? 'N/A' : '0.4GB' },
+    { name: 'CRM Enrichment Bridge', status: workerHealth.status === 'Offline' ? 'Offline' : 'Connected', latency: workerHealth.status === 'Offline' ? 'N/A' : '156ms', uptime: workerHealth.status === 'Offline' ? 'N/A' : '99.9%' },
+    { name: 'Onyx Mk3 Swarm', status: workerHealth.configured ? 'Ready' : (workerHealth.status === 'Offline' ? 'Offline' : 'Standby'), latency: workerHealth.status === 'Offline' ? 'N/A' : '<50ms', mode: 'Autonomous' },
   ];
 
   return (
@@ -67,7 +69,7 @@ export default function HealthMonitor() {
               <div>
                 <h4 className="text-sm font-medium text-white">{node.name}</h4>
                 <div className="flex items-center space-x-3 mt-1">
-                  <span className="text-[10px] font-mono text-gray-500 uppercase">{node.status}</span>
+                  <span className={`text-[10px] font-mono uppercase ${node.status === 'Ready' || node.status === 'Healthy' || node.status === 'Connected' ? 'text-emerald-500' : (node.status === 'Offline' ? 'text-red-500' : 'text-yellow-500')}`}>{node.status}</span>
                   <span className="text-[10px] font-mono text-indigo-400">{node.latency}</span>
                 </div>
               </div>

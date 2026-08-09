@@ -38,30 +38,50 @@ export const telemetryService = {
     }
   },
 
-  subscribe(callback) {
-    const channel = supabase
-      .channel('axim_telemetry_stream')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'axim_telemetry_stream' },
-        (payload) => {
-          callback(payload.new);
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Successfully subscribed to axim_telemetry_stream channel.');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Error subscribing to axim_telemetry_stream channel.');
-        } else if (status === 'TIMED_OUT') {
-          console.error('Subscription to axim_telemetry_stream channel timed out.');
-        } else if (status === 'CLOSED') {
-          console.log('Subscription to axim_telemetry_stream channel closed.');
-        }
-      });
+  subscribe(callback, onStateChange = null) {
+    let channel;
+    let reconnectTimer;
+    let attempt = 0;
+
+    const connect = () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+
+      if (onStateChange) onStateChange('CONNECTING');
+
+      channel = supabase
+        .channel('axim_telemetry_stream')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'axim_telemetry_stream' },
+          (payload) => {
+            callback(payload.new);
+          }
+        )
+        .subscribe((status, err) => {
+          if (onStateChange) onStateChange(status);
+
+          if (status === 'SUBSCRIBED') {
+            console.log('Successfully subscribed to axim_telemetry_stream channel.');
+            attempt = 0; // reset backoff
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            console.error(`Subscription to axim_telemetry_stream channel issue: ${status}`, err);
+            // Exponential backoff
+            const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
+            attempt++;
+            console.log(`Reconnecting in ${delay}ms...`);
+            clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(connect, delay);
+          }
+        });
+    };
+
+    connect();
 
     return () => {
-      supabase.removeChannel(channel);
+      clearTimeout(reconnectTimer);
+      if (channel) supabase.removeChannel(channel);
     };
   }
 };
