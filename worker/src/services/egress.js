@@ -88,7 +88,8 @@ export class Egress {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${this.env.AXIM_INTERNAL_KEY}`
+          "Authorization": `Bearer ${this.env.AXIM_INTERNAL_KEY}`,
+          "X-AXiM-Source": "AXiM-B2C-Scraper"
         },
         body: JSON.stringify(payload)
       });
@@ -101,7 +102,8 @@ export class Egress {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${this.env.AXIM_INTERNAL_KEY}`
+            "Authorization": `Bearer ${this.env.AXIM_INTERNAL_KEY}`,
+          "X-AXiM-Source": "AXiM-B2C-Scraper"
           },
           body: JSON.stringify(payload)
         });

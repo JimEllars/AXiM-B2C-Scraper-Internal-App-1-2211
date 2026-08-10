@@ -8,80 +8,107 @@ const headers = {
   'Authorization': `Bearer ${TOKEN}`
 };
 
-// Initialize Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder_key';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
 export const telemetryService = {
+  connectionMode: 'UNKNOWN', // 'LIVE EDGE' | 'LOCAL DEMO' | 'UNKNOWN'
+
+  async checkConnection() {
+    try {
+      const res = await fetch(WORKER_URL, { headers });
+      this.connectionMode = res.ok ? 'LIVE EDGE' : 'LOCAL DEMO';
+    } catch (e) {
+      this.connectionMode = 'LOCAL DEMO';
+    }
+    return this.connectionMode;
+  },
+
   async getAll() {
     try {
       const res = await fetch(WORKER_URL, { headers });
       if (!res.ok) throw new Error('Failed to fetch telemetry');
-      return await res.json();
+      this.connectionMode = 'LIVE EDGE';
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
     } catch (e) {
-      console.error("Failed to fetch telemetry", e);
+      console.warn("Falling back to local demo mode for telemetry", e);
+      this.connectionMode = 'LOCAL DEMO';
       return [];
     }
   },
 
-  async log(type, message, origin) {
+  async log(level, message, module, traceId = null) {
+    const payload = {
+      timestamp: new Date().toISOString(),
+      level: level || 'info', // 'info' | 'warn' | 'error'
+      module: module || 'unknown',
+      message,
+      traceId: traceId || crypto.randomUUID()
+    };
+
     try {
       const res = await fetch(WORKER_URL, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ type, message, origin })
+        body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error('Failed to log telemetry');
+      if (!res.ok) throw new Error('Failed to log telemetry to edge');
+      this.connectionMode = 'LIVE EDGE';
     } catch (e) {
-      console.error("Failed to log telemetry", e);
+      console.warn("Failed to log telemetry to edge, using local mode", e);
+      this.connectionMode = 'LOCAL DEMO';
+      // Local fallback happens via subscribe simulator
     }
   },
 
   subscribe(callback, onStateChange = null) {
-    let channel;
-    let reconnectTimer;
-    let attempt = 0;
+    let active = true;
+    let lastSeenIds = new Set();
 
-    const connect = () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+    // Attempt real polling from worker
+    const pollInterval = setInterval(async () => {
+       if (!active) return;
+       try {
+         const res = await fetch(WORKER_URL, { headers });
+         if (res.ok) {
+           this.connectionMode = 'LIVE EDGE';
+           if (onStateChange) onStateChange('LIVE EDGE');
+           const logs = await res.json();
+           if (Array.isArray(logs) && logs.length > 0) {
+             logs.forEach(log => {
+               if (!lastSeenIds.has(log.id)) {
+                 lastSeenIds.add(log.id);
+                 callback(log);
+               }
+             });
+             if (lastSeenIds.size > 2000) lastSeenIds.clear(); // prevent memory leak
+           }
+         } else {
+             throw new Error('Fallback to local');
+         }
+       } catch (e) {
+           this.connectionMode = 'LOCAL DEMO';
+           if (onStateChange) onStateChange('LOCAL DEMO');
+       }
+    }, 2000);
 
-      if (onStateChange) onStateChange('CONNECTING');
+    // Simulated local ticks for fallback
+    const localTickInterval = setInterval(() => {
+        if (!active || this.connectionMode === 'LIVE EDGE') return;
 
-      channel = supabase
-        .channel('axim_telemetry_stream')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'axim_telemetry_stream' },
-          (payload) => {
-            callback(payload.new);
-          }
-        )
-        .subscribe((status, err) => {
-          if (onStateChange) onStateChange(status);
-
-          if (status === 'SUBSCRIBED') {
-            console.log('Successfully subscribed to axim_telemetry_stream channel.');
-            attempt = 0; // reset backoff
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            console.error(`Subscription to axim_telemetry_stream channel issue: ${status}`, err);
-            // Exponential backoff
-            const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
-            attempt++;
-            console.log(`Reconnecting in ${delay}ms...`);
-            clearTimeout(reconnectTimer);
-            reconnectTimer = setTimeout(connect, delay);
-          }
-        });
-    };
-
-    connect();
+        const localLog = {
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          level: ['info', 'warn', 'error'][Math.floor(Math.random() * 3)],
+          module: 'LOCAL_SIMULATOR',
+          message: 'Simulated edge node telemetry ping',
+          traceId: crypto.randomUUID()
+        };
+        callback(localLog);
+    }, 5000);
 
     return () => {
-      clearTimeout(reconnectTimer);
-      if (channel) supabase.removeChannel(channel);
+      active = false;
+      clearInterval(pollInterval);
+      clearInterval(localTickInterval);
     };
   }
 };

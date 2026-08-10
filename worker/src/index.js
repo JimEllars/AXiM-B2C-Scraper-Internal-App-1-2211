@@ -72,6 +72,76 @@ export default {
     }
     
 
+    // 0.5. Telemetry API endpoints
+    if (url.pathname === "/api/telemetry") {
+      const authHeader = request.headers.get("Authorization");
+
+      if (authHeader !== `Bearer ${env.DASHBOARD_ACCESS_TOKEN}`) {
+        return new Response(JSON.stringify({ error: "Unauthorized Node Access" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin }
+        });
+      }
+
+      const kv = env.B2C_SCRAPER_STATE;
+      const today = new Date().toISOString().split('T')[0];
+      const key = `telemetry:${today}`;
+
+      if (request.method === "GET") {
+        let logs = [];
+        const logsStr = await kv.get(key);
+        if (logsStr) {
+          try {
+            logs = JSON.parse(logsStr);
+          } catch (e) { /* ignore */ }
+        }
+        return new Response(JSON.stringify(logs), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": corsOrigin
+          }
+        });
+      }
+
+      if (request.method === "POST") {
+        const payload = await request.json();
+        let logs = [];
+        const logsStr = await kv.get(key);
+        if (logsStr) {
+          try {
+            logs = JSON.parse(logsStr);
+          } catch (e) { /* ignore */ }
+        }
+
+        const newLog = {
+          id: crypto.randomUUID(),
+          timestamp: payload.timestamp || new Date().toISOString(),
+          level: payload.level || payload.type || 'info',
+          module: payload.module || payload.origin || 'unknown',
+          message: payload.message || '',
+          traceId: payload.traceId || crypto.randomUUID()
+        };
+
+        logs.push(newLog);
+
+        // Keep a reasonable buffer to prevent KV value from exceeding limits (25 MiB max, but we want much smaller)
+        if (logs.length > 2000) {
+          logs = logs.slice(-2000);
+        }
+
+        await kv.put(key, JSON.stringify(logs));
+
+        return new Response(JSON.stringify({ status: "ACKNOWLEDGED", id: newLog.id }), {
+          status: 202,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": corsOrigin
+          }
+        });
+      }
+    }
+
     // 0. Target Queue Manager endpoints
     if (url.pathname === "/api/targets") {
       const authHeader = request.headers.get("Authorization");
