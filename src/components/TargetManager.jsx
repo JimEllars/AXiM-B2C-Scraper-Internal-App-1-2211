@@ -42,12 +42,14 @@ export default function TargetManager() {
           await targetService.create({ url: u });
         }
         await auditService.log(`Bulk registered ${urls.length} targets`, 'ADMIN', 'TARGET_MANAGER');
+        if (window.addNotification) { window.addNotification('Batch Provisioned', `Successfully registered ${urls.length} targets`, 'success'); }
         setBulkUrls('');
         setIsBulk(false);
       } else {
         if (!newUrl) return;
         await targetService.create({ url: newUrl });
         await auditService.log(`Target registered: ${newUrl}`, 'ADMIN', 'TARGET_MANAGER');
+        if (window.addNotification) { window.addNotification('Target Registered', `Successfully registered ${newUrl}`, 'success'); }
         setNewUrl('');
       }
       await loadTargets();
@@ -62,6 +64,7 @@ export default function TargetManager() {
     try {
       const newStatus = await targetService.toggleStatus(id);
       await auditService.log(`Target ${url} set to ${newStatus}`, 'ADMIN', 'TARGET_MANAGER');
+      if (window.addNotification) { window.addNotification('Status Updated', `Target ${url} status changed to ${newStatus}`, 'info'); }
       await loadTargets();
     } catch (err) {
       console.error('Toggle failed', err);
@@ -72,6 +75,7 @@ export default function TargetManager() {
     try {
       await targetService.remove(id);
       await auditService.log(`Target ${url} deleted`, 'ADMIN', 'TARGET_MANAGER');
+      if (window.addNotification) { window.addNotification('Target Deleted', `Target ${url} removed`, 'info'); }
       await loadTargets();
     } catch (err) {
       console.error('Delete failed', err);

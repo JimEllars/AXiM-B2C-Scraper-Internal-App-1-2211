@@ -426,7 +426,7 @@ export default {
         const response = await scraper.fetchWithEvasion(payload.target_url, null, null, webhookUrl);
 
         if (!response.ok) {
-           throw new Error(`Apify trigger failed: ${response.status}`);
+           throw new Error(`Apify trigger failed: ${response.status} - ${response.errorText || ''}`);
         }
 
         const rawData = await response.json();
@@ -537,7 +537,7 @@ export default {
         response = await scraper.fetchWithEvasion(targetUrl, state.pagination_cursor, null, webhookUrl);
 
         if (!response.ok) {
-          throw new Error(`Proxy rejection: HTTP ${response.status}`);
+          throw new Error(`Proxy rejection: HTTP ${response.status} - ${response.errorText || ''}`);
         }
       } catch (scrapeErr) {
         if (scrapeErr.name === 'AbortError' || scrapeErr.name === 'APIFY_TIMEOUT') {

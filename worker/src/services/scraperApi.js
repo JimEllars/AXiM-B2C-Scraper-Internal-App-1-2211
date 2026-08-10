@@ -45,7 +45,11 @@ export class ScraperAPI {
     });
 
     if (!runResponse.ok) {
-      return { ok: false, status: runResponse.status };
+      let errorText = '';
+      try {
+        errorText = await runResponse.text();
+      } catch (e) { /* ignore */ }
+      return { ok: false, status: runResponse.status, errorText };
     }
 
     const runData = await runResponse.json();
