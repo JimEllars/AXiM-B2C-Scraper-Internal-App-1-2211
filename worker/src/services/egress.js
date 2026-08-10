@@ -83,36 +83,46 @@ export class Egress {
       return true;
     }
 
-    try {
-      let response = await fetch(this.env.ENRICHMENT_BRIDGE_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${this.env.AXIM_INTERNAL_KEY}`,
-          "X-AXiM-Source": "AXiM-B2C-Scraper"
-        },
-        body: JSON.stringify(payload)
-      });
+    const maxRetries = 3;
+    let attempt = 0;
 
-      if (response.status === 429) {
-        console.warn("Egress Rate Limit Hit (429). Initiating backoff...");
-        await new Promise(resolve => setTimeout(resolve, 2000));
+    while (attempt < maxRetries) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-        response = await fetch(this.env.ENRICHMENT_BRIDGE_URL, {
+        const response = await fetch(this.env.ENRICHMENT_BRIDGE_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${this.env.AXIM_INTERNAL_KEY}`,
-          "X-AXiM-Source": "AXiM-B2C-Scraper"
+            "X-AXiM-Source": "AXiM-B2C-Scraper"
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          signal: controller.signal
         });
-      }
 
-      return response.status === 202; // Bridge Acknowledgment
-    } catch (e) {
-      console.error("Critical Egress Failure:", e);
-      throw e; // Let index.js handle the telemetry report
+        clearTimeout(timeoutId);
+
+        if (response.status === 429 || response.status >= 500) {
+          const jitter = Math.floor(Math.random() * 1000);
+          const delay = (Math.pow(2, attempt) * 1000) + jitter;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          attempt++;
+          continue;
+        }
+
+        return response.status === 202; // Bridge Acknowledgment
+      } catch (e) {
+        attempt++;
+        if (attempt >= maxRetries) {
+          console.error(`Critical Egress Failure after ${maxRetries} attempts:`, e);
+          throw e; // Let index.js handle the telemetry report
+        }
+        const jitter = Math.floor(Math.random() * 1000);
+        const delay = (Math.pow(2, attempt) * 1000) + jitter;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
   }
 }

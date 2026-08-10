@@ -63,32 +63,41 @@ export const telemetryService = {
     let active = true;
     let lastSeenIds = new Set();
 
-    // Attempt real polling from worker
-    const pollInterval = setInterval(async () => {
-       if (!active) return;
-       try {
-         const res = await fetch(WORKER_URL, { headers });
-         if (res.ok) {
-           this.connectionMode = 'LIVE EDGE';
-           if (onStateChange) onStateChange('LIVE EDGE');
-           const logs = await res.json();
-           if (Array.isArray(logs) && logs.length > 0) {
-             logs.forEach(log => {
-               if (!lastSeenIds.has(log.id)) {
-                 lastSeenIds.add(log.id);
-                 callback(log);
-               }
-             });
-             if (lastSeenIds.size > 2000) lastSeenIds.clear(); // prevent memory leak
-           }
-         } else {
-             throw new Error('Fallback to local');
-         }
-       } catch (e) {
-           this.connectionMode = 'LOCAL DEMO';
-           if (onStateChange) onStateChange('LOCAL DEMO');
-       }
-    }, 2000);
+    let currentBackoff = 2000;
+    const maxBackoff = 30000;
+    let pollTimeout;
+
+    const poll = async () => {
+      if (!active) return;
+      try {
+        const res = await fetch(WORKER_URL, { headers });
+        if (res.ok) {
+          this.connectionMode = 'LIVE EDGE';
+          currentBackoff = 2000;
+          if (onStateChange) onStateChange('LIVE EDGE');
+          const logs = await res.json();
+          if (Array.isArray(logs) && logs.length > 0) {
+            logs.forEach(log => {
+              if (!lastSeenIds.has(log.id)) {
+                lastSeenIds.add(log.id);
+                callback(log);
+              }
+            });
+            if (lastSeenIds.size > 2000) lastSeenIds.clear();
+          }
+        } else {
+          throw new Error('Fallback to local');
+        }
+      } catch (e) {
+        this.connectionMode = 'LOCAL DEMO';
+        if (onStateChange) onStateChange('LOCAL DEMO');
+        currentBackoff = Math.min(currentBackoff * 1.5, maxBackoff);
+      }
+      if (active) {
+        pollTimeout = setTimeout(poll, currentBackoff);
+      }
+    };
+    poll();
 
     // Simulated local ticks for fallback
     const localTickInterval = setInterval(() => {
@@ -107,7 +116,7 @@ export const telemetryService = {
 
     return () => {
       active = false;
-      clearInterval(pollInterval);
+      clearTimeout(pollTimeout);
       clearInterval(localTickInterval);
     };
   }

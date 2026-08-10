@@ -9,6 +9,7 @@ export default function QueueManager() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => { loadJobs(); }, []);
 
@@ -25,11 +26,15 @@ export default function QueueManager() {
   };
 
   const handleClear = async () => {
+    setClearing(true);
+
     const completed = jobs.filter(j => j.status === 'COMPLETED').length;
-    if (completed === 0) return;
+    if (completed === 0) { setClearing(false); return; }
     await queueService.clearCompleted();
     await auditService.log(`Purged ${completed} completed queue records`, 'ADMIN', 'QUEUE_MANAGER');
     await loadJobs();
+    if (window.addNotification) { window.addNotification('Queue Purged', `Cleared ${completed} completed jobs`, 'success'); }
+    setClearing(false);
   };
 
   const handleRetryFailed = async () => {
@@ -43,6 +48,7 @@ export default function QueueManager() {
         await auditService.log(`Re-queued ${failedJobs.length} failed jobs`, 'ADMIN', 'QUEUE_MANAGER');
       }
       await loadJobs();
+      if (window.addNotification) { window.addNotification('Jobs Re-queued', `Re-queued ${failedJobs.length} failed jobs`, 'success'); }
     } catch (err) {
       console.error('Retry failed', err);
     } finally {
@@ -72,8 +78,9 @@ export default function QueueManager() {
               <span>Retry Failed ({failedCount})</span>
             </button>
           )}
-          <button onClick={handleClear} className="px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-xs font-bold text-gray-400 hover:text-white transition-all">
-            Purge Completed
+          <button onClick={handleClear} disabled={clearing} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-xs font-bold text-gray-400 hover:text-white transition-all">
+            {clearing && <SafeIcon icon={FiLoader} className="animate-spin" />}
+            <span>Purge Completed</span>
           </button>
           <button onClick={loadJobs} className="p-2 bg-indigo-600 rounded-lg text-white hover:bg-indigo-500">
             <SafeIcon icon={FiRefreshCw} className={loading || retrying ? 'animate-spin' : ''} />

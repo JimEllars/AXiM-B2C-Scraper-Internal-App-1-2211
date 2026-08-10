@@ -11,6 +11,10 @@ export default function TelemetryStream() {
   const [isPaused, setIsPaused] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [connectionState, setConnectionState] = useState('CONNECTING');
+
+  const [filterLevel, setFilterLevel] = useState('ALL');
+  const [filterSource, setFilterSource] = useState('ALL');
+
   const subscriptionRef = useRef(null);
   const endOfStreamRef = useRef(null);
 
@@ -23,7 +27,7 @@ export default function TelemetryStream() {
           // Prevent duplicates by ID just in case
           if (prevLogs.some(l => l.id === newLog.id)) return prevLogs;
           const updatedLogs = [...prevLogs, newLog];
-          return updatedLogs.sort((a, b) => new Date(a.timestamp || a.time || a.created_at) - new Date(b.timestamp || b.time || b.created_at)).slice(-100);
+          return updatedLogs.sort((a, b) => new Date(a.timestamp || a.time || a.created_at) - new Date(b.timestamp || b.time || b.created_at)).slice(-500);
         });
       }, (state) => {
           setConnectionState(state);
@@ -49,7 +53,7 @@ export default function TelemetryStream() {
     if (showLoading) setLoading(true);
     try {
       const data = await telemetryService.getAll();
-      const sortedAndCapped = data.sort((a, b) => new Date(a.timestamp || a.time) - new Date(b.timestamp || b.time)).slice(-100);
+      const sortedAndCapped = data.sort((a, b) => new Date(a.timestamp || a.time) - new Date(b.timestamp || b.time)).slice(-500);
       setLogs(sortedAndCapped);
     } catch (err) {
       console.error('Failed to load telemetry', err);
@@ -68,6 +72,18 @@ export default function TelemetryStream() {
     if (t === 'SUCCESS') return <SafeIcon icon={FiCheckCircle} className="text-emerald-400" />;
     return <SafeIcon icon={FiInfo} className="text-slate-400" />;
   };
+
+
+  const filteredLogs = logs.filter(log => {
+    const levelMatch = filterLevel === 'ALL' ||
+      (filterLevel === 'ERROR' && (log.level?.toUpperCase() === 'ERROR' || log.level?.toUpperCase() === 'HIGH' || log.type?.toUpperCase() === 'ERROR' || log.type?.toUpperCase() === 'HIGH')) ||
+      (filterLevel === 'WARN' && (log.level?.toUpperCase() === 'WARN' || log.type?.toUpperCase() === 'WARN')) ||
+      (filterLevel === 'INFO' && (log.level?.toUpperCase() === 'INFO' || log.type?.toUpperCase() === 'INFO' || log.level?.toUpperCase() === 'LOW' || log.type?.toUpperCase() === 'LOW'));
+
+    const sourceMatch = filterSource === 'ALL' || (log.module || log.origin) === filterSource;
+
+    return levelMatch && sourceMatch;
+  });
 
   if (loading) {
     return (
@@ -96,6 +112,27 @@ export default function TelemetryStream() {
           <p className="text-sm text-gray-400">Real-time ingestion stream from Onyx Mk3 edge nodes.</p>
         </div>
         <div className="flex items-center space-x-2">
+
+          <select
+            value={filterLevel}
+            onChange={(e) => setFilterLevel(e.target.value)}
+            className="bg-gray-900 border border-gray-800 rounded-lg px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 outline-none focus:border-indigo-500"
+          >
+            <option value="ALL">All Levels</option>
+            <option value="INFO">Info / Low</option>
+            <option value="WARN">Warning</option>
+            <option value="ERROR">Error / High</option>
+          </select>
+          <select
+            value={filterSource}
+            onChange={(e) => setFilterSource(e.target.value)}
+            className="bg-gray-900 border border-gray-800 rounded-lg px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 outline-none focus:border-indigo-500"
+          >
+            <option value="ALL">All Sources</option>
+            {[...new Set(logs.map(l => l.module || l.origin).filter(Boolean))].map(source => (
+              <option key={source} value={source}>{source}</option>
+            ))}
+          </select>
            <button
             onClick={() => setAutoScroll(!autoScroll)}
             className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
@@ -145,10 +182,10 @@ export default function TelemetryStream() {
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-2 font-mono scrollbar-thin">
           <AnimatePresence mode="popLayout">
-            {logs.length === 0 ? (
+            {filteredLogs.length === 0 ? (
               <div className="text-center py-20 text-gray-600 text-sm">No telemetry packets captured.</div>
             ) : (
-              logs.map((log) => (
+              filteredLogs.map((log) => (
                 <motion.div
                   layout
                   initial={{ opacity: 0, x: -10 }}
