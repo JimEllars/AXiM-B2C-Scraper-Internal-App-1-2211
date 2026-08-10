@@ -53,7 +53,10 @@ export default function Sidebar({ activeTab, setActiveTab }) {
       <div className="p-4 border-t border-gray-800">
         <div className="flex items-center space-x-3 px-4 py-3 bg-gray-900/50 rounded-lg border border-gray-800">
           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs font-mono text-gray-300 uppercase tracking-tighter truncate">EDGE_ONYX_NODE_01</span>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Edge Worker Active</span>
+            <span className="text-[9px] font-mono text-gray-500 uppercase truncate">Telemetry Streaming</span>
+          </div>
         </div>
       </div>
     </div>

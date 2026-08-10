@@ -5,8 +5,8 @@ import SafeIcon from '../common/SafeIcon';
 export default function StatCard({ title, value, icon, trend, positive }) {
   return (
     <motion.div 
-      whileHover={{ y: -2 }}
-      className="glass-panel p-6 flex items-center justify-between"
+      whileHover={{ y: -4 }}
+      className="glass-panel p-6 flex items-center justify-between transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/10 hover:border-indigo-500/30"
     >
       <div>
         <p className="text-gray-400 text-sm font-medium mb-1">{title}</p>
@@ -17,7 +17,7 @@ export default function StatCard({ title, value, icon, trend, positive }) {
           </p>
         )}
       </div>
-      <div className={`p-3 rounded-lg ${positive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-indigo-500/10 text-indigo-400'}`}>
+      <div className={`p-3 rounded-xl shadow-inner ${positive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20' : 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/20'}`}>
         <SafeIcon icon={icon} className="w-6 h-6" />
       </div>
     </motion.div>
