@@ -10,6 +10,15 @@
 - Preserved UI table layout and filters on view switching and background data refreshes seamlessly without breaking layouts.
 
 
+
+## [1.3.0] - Increment 1.3
+### Added
+- **Telemetry Stream Activation**: Upgraded `telemetryService.js` for immediate local state append and refined `TelemetryStream.jsx` to ensure auto-scroll, severity filtering, and buffer clearing without outer layout re-renders.
+- **Cloudflare Edge Scraper Resilience**: Enhanced `worker/src/services/scraperApi.js` to trap non-200 responses, formatting standardized error JSON buffers, and reporting metrics via Telemetry.
+- **Egress Resilience**: Updated `worker/src/services/egress.js` with telemetry logging for its exponential backoff logic on outgoing scraper requests.
+- **AXiM Core Payload Normalization**: Added a `normalizePayload` transformer function in `dataService.js` that maps scraped raw B2C lead fields to the standard AXiM unified schema.
+- **UI Visual Polish**: Added a live-status pulse indicator in `Sidebar.jsx` for "Edge Worker Active" and refined hover transitions and metric badge contrasts on `StatCard.jsx`.
+
 ## [Unreleased]
 ### Added
 - Implemented `/api/telemetry` GET and POST endpoints in the Cloudflare Worker to serve as a telemetry metrics proxy and buffer.

@@ -105,6 +105,8 @@ export class Egress {
         clearTimeout(timeoutId);
 
         if (response.status === 429 || response.status >= 500) {
+          const telemetry = new Telemetry(this.env);
+          await telemetry.report("EGRESS_HTTP_ERROR", "WARN", "egress_bridge", `Egress failed with status ${response.status}, retrying... (Attempt ${attempt + 1})`);
           const jitter = Math.floor(Math.random() * 1000);
           const delay = (Math.pow(2, attempt) * 1000) + jitter;
           await new Promise(resolve => setTimeout(resolve, delay));
@@ -116,8 +118,10 @@ export class Egress {
       } catch (e) {
         attempt++;
         if (attempt >= maxRetries) {
+          const telemetry = new Telemetry(this.env);
+          await telemetry.report("EGRESS_CRITICAL_FAILURE", "HIGH", "egress_bridge", `Critical Egress Failure after ${maxRetries} attempts: ${e.message}`);
           console.error(`Critical Egress Failure after ${maxRetries} attempts:`, e);
-          throw e; // Let index.js handle the telemetry report
+          throw e;
         }
         const jitter = Math.floor(Math.random() * 1000);
         const delay = (Math.pow(2, attempt) * 1000) + jitter;

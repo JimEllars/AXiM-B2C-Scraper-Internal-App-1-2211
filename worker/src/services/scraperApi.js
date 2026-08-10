@@ -1,3 +1,4 @@
+import { Telemetry } from '../utils/telemetry.js';
 /**
  * Apify Proxy & Scraper Integration
  * Offloads JS rendering, CAPTCHA solving, and IP rotation to Apify Actor.
@@ -45,11 +46,21 @@ export class ScraperAPI {
     });
 
     if (!runResponse.ok) {
+      const telemetry = new Telemetry(this.env);
       let errorText = '';
       try {
         errorText = await runResponse.text();
       } catch (e) { /* ignore */ }
-      return { ok: false, status: runResponse.status, errorText };
+
+      const errorBuffer = {
+        error_code: runResponse.status,
+        error_message: errorText,
+        target_url: targetUrl,
+        timestamp: new Date().toISOString()
+      };
+      await telemetry.report("APIFY_API_ERROR", "HIGH", "scraperApi", `Failed to start run: ${runResponse.status}`, errorBuffer);
+
+      return { ok: false, status: runResponse.status, errorText, errorBuffer };
     }
 
     const runData = await runResponse.json();

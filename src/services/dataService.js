@@ -7,6 +7,17 @@ const headers = {
 };
 
 export const dataService = {
+  normalizePayload(raw) {
+    return {
+      first_name: raw.Name?.split(' ')[0] || raw.first_name || '',
+      last_name: raw.Name?.split(' ').slice(1).join(' ') || raw.last_name || '',
+      email: raw.Email || raw.email || '',
+      phone: raw.Phone || raw.phone || '',
+      address: raw.Address || raw.address || '',
+      origin_url: raw.Source || raw.origin_url || ''
+    };
+  },
+
   async getAll() {
     const res = await fetch(WORKER_URL, { headers });
     if (!res.ok) throw new Error('Failed to fetch data');

@@ -9,6 +9,8 @@ const headers = {
 };
 
 export const telemetryService = {
+  _subscriberCallback: null,
+
   connectionMode: 'UNKNOWN', // 'LIVE EDGE' | 'LOCAL DEMO' | 'UNKNOWN'
 
   async checkConnection() {
@@ -37,12 +39,18 @@ export const telemetryService = {
 
   async log(level, message, module, traceId = null) {
     const payload = {
+      id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
-      level: level || 'info', // 'info' | 'warn' | 'error'
+      level: level || 'info',
       module: module || 'unknown',
       message,
       traceId: traceId || crypto.randomUUID()
     };
+
+    if (this._subscriberCallback) {
+      this._subscriberCallback(payload);
+    }
+
 
     try {
       const res = await fetch(WORKER_URL, {
@@ -60,6 +68,7 @@ export const telemetryService = {
   },
 
   subscribe(callback, onStateChange = null) {
+    this._subscriberCallback = callback;
     let active = true;
     let lastSeenIds = new Set();
 
@@ -112,6 +121,7 @@ export const telemetryService = {
           traceId: crypto.randomUUID()
         };
         callback(localLog);
+                if (onStateChange) onStateChange(this.connectionMode);
     }, 5000);
 
     return () => {
