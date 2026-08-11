@@ -8,13 +8,19 @@ import { format } from 'date-fns';
 export default function QueueManager() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [clearing, setClearing] = useState(false);
 
-  useEffect(() => { loadJobs(); }, []);
+  useEffect(() => {
+    loadJobs();
+    const intervalId = setInterval(() => loadJobs(true), 15000);
+    return () => clearInterval(intervalId);
+  }, []);
 
-  const loadJobs = async () => {
-    setLoading(true);
+  const loadJobs = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
+    else setRefreshing(true);
     try {
       const data = await queueService.getAll();
       setJobs(data);
@@ -22,6 +28,7 @@ export default function QueueManager() {
       console.error(err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -29,10 +36,14 @@ export default function QueueManager() {
     setClearing(true);
 
     const completed = jobs.filter(j => j.status === 'COMPLETED').length;
-    if (completed === 0) { setClearing(false); return; }
+    if (completed === 0) {
+        if (window.addNotification) window.addNotification('Queue Clear', 'No completed jobs to purge', 'info');
+        setClearing(false);
+        return;
+    }
     await queueService.clearCompleted();
     await auditService.log(`Purged ${completed} completed queue records`, 'ADMIN', 'QUEUE_MANAGER');
-    await loadJobs();
+    await loadJobs(true);
     if (window.addNotification) { window.addNotification('Queue Purged', `Cleared ${completed} completed jobs`, 'success'); }
     setClearing(false);
   };
@@ -47,10 +58,11 @@ export default function QueueManager() {
       if (failedJobs.length > 0) {
         await auditService.log(`Re-queued ${failedJobs.length} failed jobs`, 'ADMIN', 'QUEUE_MANAGER');
       }
-      await loadJobs();
+      await loadJobs(true);
       if (window.addNotification) { window.addNotification('Jobs Re-queued', `Re-queued ${failedJobs.length} failed jobs`, 'success'); }
     } catch (err) {
       console.error('Retry failed', err);
+      if (window.addNotification) { window.addNotification('Retry Failed', `Error retrying jobs`, 'error'); }
     } finally {
       setRetrying(false);
     }
@@ -72,18 +84,18 @@ export default function QueueManager() {
             <button 
               onClick={handleRetryFailed} 
               disabled={retrying}
-              className="flex items-center space-x-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs font-bold text-amber-500 hover:bg-amber-500/20 transition-all"
+              className="flex items-center space-x-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs font-bold text-amber-500 hover:bg-amber-500/20 transition-all disabled:opacity-50"
             >
               {retrying ? <SafeIcon icon={FiLoader} className="animate-spin" /> : <SafeIcon icon={FiPlayCircle} />}
               <span>Retry Failed ({failedCount})</span>
             </button>
           )}
-          <button onClick={handleClear} disabled={clearing} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-xs font-bold text-gray-400 hover:text-white transition-all">
-            {clearing && <SafeIcon icon={FiLoader} className="animate-spin" />}
+          <button onClick={handleClear} disabled={clearing} className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-xs font-bold text-gray-400 hover:text-white transition-all disabled:opacity-50">
+            {clearing ? <SafeIcon icon={FiLoader} className="animate-spin" /> : null}
             <span>Purge Completed</span>
           </button>
-          <button onClick={loadJobs} className="p-2 bg-indigo-600 rounded-lg text-white hover:bg-indigo-500">
-            <SafeIcon icon={FiRefreshCw} className={loading || retrying ? 'animate-spin' : ''} />
+          <button onClick={() => loadJobs(true)} disabled={refreshing || loading} className="p-2 bg-indigo-600 rounded-lg text-white hover:bg-indigo-500 disabled:opacity-50 transition-all">
+            <SafeIcon icon={FiRefreshCw} className={refreshing || loading || retrying ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>

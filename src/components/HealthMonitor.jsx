@@ -1,14 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../common/SafeIcon';
 import { FiCheckCircle, FiActivity, FiArrowRight } from 'react-icons/fi';
+import { telemetryService } from '../services/telemetryService';
 
 export default function HealthMonitor() {
-  const [workerHealth, setWorkerHealth] = useState({ status: 'Connecting...', latency: 'N/A', load: 'N/A' });
+  const [workerHealth, setWorkerHealth] = useState({ status: 'Connecting to Edge...', latency: 'N/A', load: 'N/A', kvStatus: 'OFFLINE', configured: false });
   const [lastHeartbeat, setLastHeartbeat] = useState(new Date().toLocaleTimeString());
+  const latenciesRef = useRef([]);
 
   useEffect(() => {
-    const checkHealth = async () => {
+    let unsubscribe = null;
+
+    const checkInitialHealth = async () => {
       const startTime = Date.now();
       try {
         const workerUrl = import.meta.env.VITE_WORKER_URL || 'http://localhost:8787';
@@ -16,35 +20,84 @@ export default function HealthMonitor() {
         const data = await response.json();
         const latency = Date.now() - startTime;
 
-        setWorkerHealth({
+        setWorkerHealth(prev => ({
+          ...prev,
           status: data.status === 'ONLINE' ? 'Healthy' : 'Degraded',
           latency: `${latency}ms`,
           load: data.load || 'Unknown',
           configured: data.configured || false,
           kvStatus: data.kvStatus || 'OFFLINE'
-        });
+        }));
         setLastHeartbeat(new Date(data.timestamp || Date.now()).toLocaleTimeString());
       } catch (error) {
         setWorkerHealth({
           status: 'Offline',
           latency: 'N/A',
           load: '0%',
-          configured: false
+          configured: false,
+          kvStatus: 'OFFLINE'
         });
         setLastHeartbeat(new Date().toLocaleTimeString());
       }
     };
 
-    checkHealth();
-    const intervalId = setInterval(checkHealth, 30000); // Check every 30 seconds
+    // Initial fetch to populate load/configured immediately
+    checkInitialHealth();
 
-    return () => clearInterval(intervalId);
+    const handleLog = (log) => {
+       // Estimate latency as time since log generation
+       const logTime = new Date(log.timestamp).getTime();
+       const now = Date.now();
+       const currentLatency = Math.max(0, now - logTime);
+
+       latenciesRef.current.push(currentLatency);
+       if (latenciesRef.current.length > 50) {
+         latenciesRef.current.shift();
+       }
+
+       const avgLatency = Math.floor(latenciesRef.current.reduce((a, b) => a + b, 0) / latenciesRef.current.length);
+
+       setWorkerHealth(prev => ({
+           ...prev,
+           status: telemetryService.connectionMode === 'LIVE EDGE' ? 'Healthy' : 'Degraded',
+           latency: `${avgLatency}ms`,
+           kvStatus: telemetryService.connectionMode === 'LIVE EDGE' ? 'ONLINE' : 'OFFLINE'
+       }));
+       setLastHeartbeat(new Date().toLocaleTimeString());
+    };
+
+    const handleStateChange = (state) => {
+        if (state === 'LOCAL DEMO') {
+             setWorkerHealth(prev => ({
+                  ...prev,
+                  status: 'Offline',
+                  latency: 'N/A',
+                  kvStatus: 'OFFLINE'
+             }));
+        } else if (state === 'LIVE EDGE' && workerHealth.status === 'Connecting to Edge...') {
+             setWorkerHealth(prev => ({
+                 ...prev,
+                 status: 'Healthy',
+                 kvStatus: 'ONLINE'
+             }));
+        }
+    };
+
+    unsubscribe = telemetryService.subscribe(handleLog, handleStateChange);
+
+    // Interval for health endpoint to update things not in telemetry (like configured status)
+    const intervalId = setInterval(checkInitialHealth, 60000);
+
+    return () => {
+        if (unsubscribe) unsubscribe();
+        clearInterval(intervalId);
+    };
   }, []);
 
   const nodes = [
     { name: 'Edge Worker Node', status: workerHealth.status, latency: workerHealth.latency, load: workerHealth.load },
-    { name: 'Cloudflare KV Ledger', status: workerHealth.kvStatus === 'ONLINE' ? 'Healthy' : 'Offline', latency: workerHealth.kvStatus === 'ONLINE' ? `${Math.floor(parseInt(workerHealth.latency) * 0.2) + 12}ms` : 'N/A', usage: workerHealth.kvStatus === 'ONLINE' ? '0.4GB' : 'N/A' },
-    { name: 'CRM Enrichment Bridge', status: workerHealth.status === 'Offline' ? 'Offline' : 'Connected', latency: workerHealth.status === 'Offline' ? 'N/A' : `${Math.floor(parseInt(workerHealth.latency) * 1.5) + 85}ms`, uptime: workerHealth.status === 'Offline' ? 'N/A' : '99.9%' },
+    { name: 'Cloudflare KV Ledger', status: workerHealth.kvStatus === 'ONLINE' ? 'Healthy' : 'Offline', latency: workerHealth.kvStatus === 'ONLINE' && workerHealth.latency !== 'N/A' ? `${Math.floor(parseInt(workerHealth.latency) * 0.2) + 12}ms` : 'N/A', usage: workerHealth.kvStatus === 'ONLINE' ? '0.4GB' : 'N/A' },
+    { name: 'CRM Enrichment Bridge', status: workerHealth.status === 'Offline' ? 'Offline' : 'Connected', latency: workerHealth.status === 'Offline' || workerHealth.latency === 'N/A' ? 'N/A' : `${Math.floor(parseInt(workerHealth.latency) * 1.5) + 85}ms`, uptime: workerHealth.status === 'Offline' ? 'N/A' : '99.9%' },
     { name: 'Onyx Mk3 Swarm', status: workerHealth.configured ? 'Ready' : (workerHealth.status === 'Offline' ? 'Offline' : 'Standby'), latency: workerHealth.status === 'Offline' ? 'N/A' : '<50ms', mode: 'Autonomous' },
   ];
 
@@ -70,7 +123,7 @@ export default function HealthMonitor() {
               <div>
                 <h4 className="text-sm font-medium text-white">{node.name}</h4>
                 <div className="flex items-center space-x-3 mt-1">
-                  <span className={`text-[10px] font-mono uppercase ${node.status === 'Ready' || node.status === 'Healthy' || node.status === 'Connected' ? 'text-emerald-500' : (node.status === 'Offline' ? 'text-red-500' : 'text-yellow-500')}`}>{node.status}</span>
+                  <span className={`text-[10px] font-mono uppercase ${node.status === 'Ready' || node.status === 'Healthy' || node.status === 'Connected' ? 'text-emerald-500' : (node.status === 'Offline' || node.status === 'Connecting to Edge...' ? (node.status === 'Connecting to Edge...' ? 'text-amber-500 animate-pulse' : 'text-red-500') : 'text-yellow-500')}`}>{node.status}</span>
                   <span className="text-[10px] font-mono text-indigo-400">{node.latency}</span>
                 </div>
               </div>
