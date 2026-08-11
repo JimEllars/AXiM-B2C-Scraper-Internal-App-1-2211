@@ -126,8 +126,8 @@ export async function enforceSchemaAndExtract(rawItems, env, telemetry) {
     const hasPhone = !!item.phone;
     const hasEmail = !!item.email;
 
-    // Schema constraint check - MUST have first_name, AND either phone OR email
-    const isValidSchema = hasFirstName && (hasPhone || hasEmail);
+    // Schema constraint check - MUST have first_name, AND phone, AND email
+    const isValidSchema = hasFirstName && hasPhone && hasEmail;
     const hasUnstructuredFlag = item.raw_html || item.unstructured_text;
 
     if (!isValidSchema || hasUnstructuredFlag) {
@@ -137,35 +137,30 @@ export async function enforceSchemaAndExtract(rawItems, env, telemetry) {
         mappedRecords.push({
           first_name: cognitiveResult.first_name || item.first_name || '',
           last_name: cognitiveResult.last_name || item.last_name || '',
-          email: cognitiveResult.email || item.email || '',
           phone: cognitiveResult.phone || item.phone || '',
-          address: cognitiveResult.address || item.address || '',
-          type: cognitiveResult.type || 'B2C_CONSUMER',
-          origin_url: item.origin_url || 'Unknown'
+          email: cognitiveResult.email || item.email || '',
+          type: cognitiveResult.type || 'B2C_CONSUMER'
         });
         await telemetry.report("ONYX_EXTRACTION_SUCCESS", "LOW", "schema_enforcer", `Successfully parsed unstructured item`);
       } catch (cogErr) {
          await telemetry.report("ONYX_EXTRACTION_FAILED", "MEDIUM", "schema_enforcer", `Fallback failed: ${cogErr.message}`);
-         // Final safety fallback to basic mapping if cognitive fails, even if it violates strict schema
-         // since Egress validates further and will drop them anyway if missing phone AND email
+         // Final safety fallback to basic mapping if cognitive fails, strictly normalized
          mappedRecords.push({
             first_name: item.first_name || '',
             last_name: item.last_name || '',
-            email: item.email || '',
             phone: item.phone || '',
-            address: item.address || '',
-            origin_url: item.origin_url || 'Unknown'
+            email: item.email || '',
+            type: 'B2C_CONSUMER'
          });
       }
     } else {
-      // Clean pass
+      // Clean pass, strictly normalized
       mappedRecords.push({
         first_name: item.first_name || '',
         last_name: item.last_name || '',
-        email: item.email || '',
         phone: item.phone || '',
-        address: item.address || '',
-        origin_url: item.origin_url || 'Unknown'
+        email: item.email || '',
+        type: 'B2C_CONSUMER'
       });
     }
   }

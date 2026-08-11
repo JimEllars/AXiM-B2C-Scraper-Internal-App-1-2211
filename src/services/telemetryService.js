@@ -69,10 +69,13 @@ export const telemetryService = {
     }
   },
 
+
   subscribe(callback, onStateChange = null) {
     this._subscriberCallback = callback;
     let active = true;
     let lastSeenIds = new Set();
+
+    let latencies = [];
 
     let currentBackoff = 2000;
     const maxBackoff = 30000;
@@ -85,23 +88,39 @@ export const telemetryService = {
         if (res.ok) {
           this.connectionMode = 'LIVE EDGE';
           currentBackoff = 2000;
-          if (onStateChange) onStateChange('LIVE EDGE');
+          let avgLatency = null;
+
           const logs = await res.json();
           if (Array.isArray(logs) && logs.length > 0) {
             logs.forEach(log => {
               if (!lastSeenIds.has(log.id)) {
                 lastSeenIds.add(log.id);
                 callback(log);
+
+                // Calculate latency based on timestamp delta
+                const logTime = new Date(log.timestamp || log.time || log.created_at).getTime();
+                const now = Date.now();
+                latencies.push(Math.max(0, now - logTime));
               }
             });
             if (lastSeenIds.size > 2000) lastSeenIds.clear();
+
+            // Keep last 50 latencies
+            if (latencies.length > 50) {
+              latencies = latencies.slice(-50);
+            }
+            if (latencies.length > 0) {
+              avgLatency = Math.floor(latencies.reduce((a, b) => a + b, 0) / latencies.length);
+            }
           }
+
+          if (onStateChange) onStateChange('LIVE EDGE', avgLatency);
         } else {
           throw new Error('Fallback to local');
         }
       } catch (e) {
         this.connectionMode = 'LOCAL DEMO';
-        if (onStateChange) onStateChange('LOCAL DEMO');
+        if (onStateChange) onStateChange('LOCAL DEMO', null);
         currentBackoff = Math.min(currentBackoff * 1.5, maxBackoff);
       }
       if (active) {
@@ -109,6 +128,7 @@ export const telemetryService = {
       }
     };
     poll();
+
 
     // Simulated local ticks for fallback
     const localTickInterval = setInterval(() => {

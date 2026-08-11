@@ -5,9 +5,9 @@ import { FiCheckCircle, FiActivity, FiArrowRight } from 'react-icons/fi';
 import { telemetryService } from '../services/telemetryService';
 
 export default function HealthMonitor() {
-  const [workerHealth, setWorkerHealth] = useState({ status: 'Connecting to Edge...', latency: 'N/A', load: 'N/A', kvStatus: 'OFFLINE', configured: false });
+  const [workerHealth, setWorkerHealth] = useState({ status: 'Reconnecting...', latency: 'N/A', load: 'N/A', kvStatus: 'OFFLINE', configured: false });
   const [lastHeartbeat, setLastHeartbeat] = useState(new Date().toLocaleTimeString());
-  const latenciesRef = useRef([]);
+
 
   useEffect(() => {
     let unsubscribe = null;
@@ -45,28 +45,10 @@ export default function HealthMonitor() {
     checkInitialHealth();
 
     const handleLog = (log) => {
-       // Estimate latency as time since log generation
-       const logTime = new Date(log.timestamp).getTime();
-       const now = Date.now();
-       const currentLatency = Math.max(0, now - logTime);
-
-       latenciesRef.current.push(currentLatency);
-       if (latenciesRef.current.length > 50) {
-         latenciesRef.current.shift();
-       }
-
-       const avgLatency = Math.floor(latenciesRef.current.reduce((a, b) => a + b, 0) / latenciesRef.current.length);
-
-       setWorkerHealth(prev => ({
-           ...prev,
-           status: telemetryService.connectionMode === 'LIVE EDGE' ? 'Healthy' : 'Degraded',
-           latency: `${avgLatency}ms`,
-           kvStatus: telemetryService.connectionMode === 'LIVE EDGE' ? 'ONLINE' : 'OFFLINE'
-       }));
        setLastHeartbeat(new Date().toLocaleTimeString());
     };
 
-    const handleStateChange = (state) => {
+    const handleStateChange = (state, avgLatency) => {
         if (state === 'LOCAL DEMO') {
              setWorkerHealth(prev => ({
                   ...prev,
@@ -74,12 +56,15 @@ export default function HealthMonitor() {
                   latency: 'N/A',
                   kvStatus: 'OFFLINE'
              }));
-        } else if (state === 'LIVE EDGE' && workerHealth.status === 'Connecting to Edge...') {
+        } else if (state === 'LIVE EDGE' && workerHealth.status === 'Reconnecting...') {
              setWorkerHealth(prev => ({
                  ...prev,
-                 status: 'Healthy',
+                 status: 'Live Edge Sync',
                  kvStatus: 'ONLINE'
              }));
+             if (avgLatency !== null && avgLatency !== undefined) {
+                 setWorkerHealth(prev => ({ ...prev, latency: `${avgLatency}ms` }));
+             }
         }
     };
 
@@ -123,7 +108,7 @@ export default function HealthMonitor() {
               <div>
                 <h4 className="text-sm font-medium text-white">{node.name}</h4>
                 <div className="flex items-center space-x-3 mt-1">
-                  <span className={`text-[10px] font-mono uppercase ${node.status === 'Ready' || node.status === 'Healthy' || node.status === 'Connected' ? 'text-emerald-500' : (node.status === 'Offline' || node.status === 'Connecting to Edge...' ? (node.status === 'Connecting to Edge...' ? 'text-amber-500 animate-pulse' : 'text-red-500') : 'text-yellow-500')}`}>{node.status}</span>
+                  <span className={`text-[10px] font-mono uppercase ${node.status === 'Ready' || node.status === 'Healthy' || node.status === 'Connected' || node.status === 'Live Edge Sync' ? 'text-emerald-500' : (node.status === 'Offline' || node.status === 'Reconnecting...' ? (node.status === 'Reconnecting...' ? 'text-amber-500 animate-pulse' : 'text-red-500') : 'text-yellow-500')}`}>{node.status}</span>
                   <span className="text-[10px] font-mono text-indigo-400">{node.latency}</span>
                 </div>
               </div>
