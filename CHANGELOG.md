@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.2.0]
+### Added
+- **Health Monitor Live Data Binding**: Wired `HealthMonitor.jsx` metrics directly to the incoming telemetry stream data. Added real-time average latency calculations and visual fallback indicators during initial handshakes.
+- **UI Action Feedback**: Attached immediate toast notifications to user queue actions across `QueueManager.jsx` and `TargetManager.jsx`. Added explicit busy/spinner states on buttons during pending API fetches.
+- **Cognitive Fallback Schema Enforcer**: Enforced strict JSON output validation prior to calling egress. If raw DOM extraction yields incomplete fields, it automatically invokes Onyx cognitive parsing for structured extraction fallback.
+
 ## [2.1.0]
 ### Added
 - **Telemetry Stream Hardening**: Implemented an auto-reconnecting stream wrapper with exponential backoff for telemetry events. Added a configurable buffer cap (500 records max) to the UI stream state to prevent memory bloat, and added proper filtering by Level and Source.

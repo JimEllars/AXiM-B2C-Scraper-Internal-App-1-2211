@@ -14,20 +14,24 @@ export default function TargetManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
 
+  // Track specific targets that are loading during actions to avoid double clicks
+  const [actingTargets, setActingTargets] = useState({});
+
   useEffect(() => {
     loadTargets();
-    const intervalId = setInterval(loadTargets, 15000);
+    const intervalId = setInterval(() => loadTargets(true), 15000);
     return () => clearInterval(intervalId);
   }, []);
 
-  const loadTargets = async () => {
+  const loadTargets = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const data = await targetService.getAll();
       setTargets(data);
     } catch (err) {
       console.error('Failed to load targets', err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
@@ -52,33 +56,47 @@ export default function TargetManager() {
         if (window.addNotification) { window.addNotification('Target Registered', `Successfully registered ${newUrl}`, 'success'); }
         setNewUrl('');
       }
-      await loadTargets();
+      await loadTargets(true);
     } catch (err) {
       console.error('Add failed', err);
+      if (window.addNotification) { window.addNotification('Provision Failed', 'Failed to register target', 'error'); }
     } finally {
       setIsAdding(false);
     }
   };
 
+  const setActing = (id, state) => {
+      setActingTargets(prev => ({ ...prev, [id]: state }));
+  }
+
   const handleToggle = async (id, url) => {
+    if (actingTargets[id]) return;
+    setActing(id, true);
     try {
       const newStatus = await targetService.toggleStatus(id);
       await auditService.log(`Target ${url} set to ${newStatus}`, 'ADMIN', 'TARGET_MANAGER');
       if (window.addNotification) { window.addNotification('Status Updated', `Target ${url} status changed to ${newStatus}`, 'info'); }
-      await loadTargets();
+      await loadTargets(true);
     } catch (err) {
       console.error('Toggle failed', err);
+      if (window.addNotification) { window.addNotification('Status Update Failed', `Failed to change status for ${url}`, 'error'); }
+    } finally {
+      setActing(id, false);
     }
   };
 
   const handleDelete = async (id, url) => {
+    if (actingTargets[id]) return;
+    setActing(id, true);
     try {
       await targetService.remove(id);
       await auditService.log(`Target ${url} deleted`, 'ADMIN', 'TARGET_MANAGER');
       if (window.addNotification) { window.addNotification('Target Deleted', `Target ${url} removed`, 'info'); }
-      await loadTargets();
+      await loadTargets(true);
     } catch (err) {
       console.error('Delete failed', err);
+      if (window.addNotification) { window.addNotification('Delete Failed', `Failed to delete ${url}`, 'error'); }
+      setActing(id, false); // only untrack if it fails, if it succeeds it's gone
     }
   };
 
@@ -147,7 +165,7 @@ export default function TargetManager() {
           />
         )}
         <div className="flex justify-end">
-          <button disabled={isAdding} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-lg text-sm font-bold flex items-center space-x-2 transition-all">
+          <button disabled={isAdding} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-8 py-2.5 rounded-lg text-sm font-bold flex items-center space-x-2 transition-all">
             {isAdding ? <SafeIcon icon={FiLoader} className="animate-spin" /> : <SafeIcon icon={isBulk ? FiLayers : FiPlus} />}
             <span>{isBulk ? 'Provision Batch' : 'Provision Target'}</span>
           </button>
@@ -167,16 +185,18 @@ export default function TargetManager() {
                 <span>Last Activity: {target.lastRun}</span>
               </div>
             </div>
-            <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className={`flex items-center space-x-2 transition-opacity ${actingTargets[target.id] ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
               <button 
                 onClick={() => handleToggle(target.id, target.url)}
-                className={`p-2 rounded-lg border transition-all ${target.status === 'RUNNING' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20'}`}
+                disabled={actingTargets[target.id]}
+                className={`p-2 rounded-lg border transition-all disabled:opacity-50 ${target.status === 'RUNNING' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20'}`}
               >
-                <SafeIcon icon={target.status === 'RUNNING' ? FiPause : FiPlay} className="w-4 h-4" />
+                {actingTargets[target.id] ? <SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" /> : <SafeIcon icon={target.status === 'RUNNING' ? FiPause : FiPlay} className="w-4 h-4" />}
               </button>
               <button 
                 onClick={() => handleDelete(target.id, target.url)}
-                className="p-2 bg-gray-800 text-gray-400 border border-gray-700 rounded-lg hover:text-rose-400 hover:border-rose-900/50 transition-all"
+                disabled={actingTargets[target.id]}
+                className="p-2 bg-gray-800 text-gray-400 border border-gray-700 rounded-lg hover:text-rose-400 hover:border-rose-900/50 transition-all disabled:opacity-50"
               >
                 <SafeIcon icon={FiTrash2} className="w-4 h-4" />
               </button>

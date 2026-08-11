@@ -1,4 +1,4 @@
-import { ScraperAPI, cognitiveExtractWithOnyx } from './services/scraperApi.js';
+import { ScraperAPI, enforceSchemaAndExtract } from './services/scraperApi.js';
 import { KVStore } from './services/kvStore.js';
 import { Egress } from './services/egress.js';
 import { Telemetry } from './utils/telemetry.js';
@@ -339,46 +339,8 @@ export default {
             if (datasetResponse.ok) {
               const rawItems = await datasetResponse.json();
 
-              // Map Dataset Schema
-              const mappedRecords = [];
-              for (const item of rawItems) {
-                // If traditional parsing yields missing fields or unstructured data, route through cognitive proxy
-                if ((!item.first_name && !item.last_name && !item.email && !item.phone) || item.raw_html || item.unstructured_text) {
-                  const rawText = item.raw_html || item.unstructured_text || JSON.stringify(item);
-                  try {
-                    const cognitiveResult = await cognitiveExtractWithOnyx(rawText, env);
-                    mappedRecords.push({
-                      first_name: cognitiveResult.first_name || '',
-                      last_name: cognitiveResult.last_name || '',
-                      email: cognitiveResult.email || '',
-                      phone: cognitiveResult.phone || '',
-                      address: cognitiveResult.address || item.address || '',
-                      type: cognitiveResult.type || 'B2C_CONSUMER',
-                      origin_url: item.origin_url || 'Unknown'
-                    });
-                  } catch (cogErr) {
-                     await telemetry.report("ONYX_EXTRACTION_FAILED", "MEDIUM", "edge_worker", `Fallback failed: ${cogErr.message}`);
-                     // Fallback to basic mapping if cognitive fails
-                     mappedRecords.push({
-                        first_name: item.first_name || '',
-                        last_name: item.last_name || '',
-                        email: item.email || '',
-                        phone: item.phone || '',
-                        address: item.address || '',
-                        origin_url: item.origin_url || 'Unknown'
-                     });
-                  }
-                } else {
-                  mappedRecords.push({
-                    first_name: item.first_name || '',
-                    last_name: item.last_name || '',
-                    email: item.email || '',
-                    phone: item.phone || '',
-                    address: item.address || '',
-                    origin_url: item.origin_url || 'Unknown'
-                  });
-                }
-              }
+              // Route through Schema Enforcer
+              const mappedRecords = await enforceSchemaAndExtract(rawItems, env, telemetry);
 
               await egress.transmit(mappedRecords, false, runId);
               await telemetry.report("SCRAPE_COMPLETE", "LOW", "edge_worker", `Successfully processed dataset for runId: ${runId}`);
