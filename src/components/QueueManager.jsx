@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiLayers, FiRefreshCw, FiLoader, FiAlertCircle, FiCheckCircle, FiClock, FiPlayCircle } from 'react-icons/fi';
+import { FiLayers, FiRefreshCw, FiLoader, FiAlertCircle, FiCheckCircle, FiClock, FiPlayCircle, FiZap } from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { queueService } from '../services/queueService';
 import { auditService } from '../services/auditService';
@@ -11,6 +11,7 @@ export default function QueueManager() {
   const [refreshing, setRefreshing] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [promotingId, setPromotingId] = useState(null);
 
   useEffect(() => {
     loadJobs();
@@ -65,6 +66,48 @@ export default function QueueManager() {
       if (window.addNotification) { window.addNotification('Retry Failed', `Error retrying jobs`, 'error'); }
     } finally {
       setRetrying(false);
+    }
+  };
+
+
+  const handlePromote = async (job) => {
+    setPromotingId(job.id);
+    try {
+        const workerUrl = (import.meta.env.VITE_WORKER_URL || 'http://localhost:8787') + '/api/onyx-trigger';
+        // Note: the prompt says "dispatch POST payload to /api/onyx-trigger with priority: HIGH".
+        // And we must use AXIM_INTERNAL_KEY since it requires it.
+        const token = import.meta.env.VITE_AXIM_INTERNAL_KEY || 'YOUR_CRM_BRIDGE_JWT';
+
+        const response = await fetch(workerUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                target_url: job.url,
+                priority: 'HIGH'
+            })
+        });
+
+        if (!response.ok) {
+            let errMsg = 'Trigger failed';
+            try { const errData = await response.json(); if (errData.error) errMsg = errData.error; } catch(e) { /* ignore parse error */ }
+            throw new Error(errMsg);
+        }
+
+        if (window.addNotification) {
+            window.addNotification('Priority Trigger', `High priority extraction started for ${job.url}`, 'success');
+        }
+        await auditService.log(`Promoted ${job.url} to high priority execution`, 'ADMIN', 'QUEUE_MANAGER');
+        await queueService.updateStatus(job.id, 'PENDING', ''); // Optional state reset
+        loadJobs(true);
+    } catch (err) {
+        if (window.addNotification) {
+            window.addNotification('Trigger Failed', err.message, 'error');
+        }
+    } finally {
+        setPromotingId(null);
     }
   };
 
@@ -133,8 +176,18 @@ export default function QueueManager() {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-gray-500">{job.attempts}/3</td>
-                <td className="px-6 py-4 text-right text-gray-500">
-                  {format(job.createdAt, 'HH:mm:ss')}
+                <td className="px-6 py-4 text-right text-gray-500 flex justify-end items-center space-x-3">
+                  <span>{job.createdAt ? format(new Date(job.createdAt), 'HH:mm:ss') : 'N/A'}</span>
+                  {job.status !== 'COMPLETED' && (
+                    <button
+                        onClick={() => handlePromote(job)}
+                        disabled={promotingId === job.id}
+                        title="Promote to Top / Run Immediate"
+                        className="p-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 rounded border border-amber-500/30 transition-colors disabled:opacity-50"
+                    >
+                        {promotingId === job.id ? <SafeIcon icon={FiLoader} className="w-3 h-3 animate-spin" /> : <SafeIcon icon={FiZap} className="w-3 h-3" />}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

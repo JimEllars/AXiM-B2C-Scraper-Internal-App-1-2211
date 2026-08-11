@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.0]
+### Added
+- **Network Map Live Node Binding**: Wired `NetworkMap.jsx` active proxy nodes and regional latency rings directly to live telemetry data. Calculates real-time node uptime and health badges from active proxy telemetry events. Provided smooth SVG fallback pulses during initial edge worker telemetry handshakes.
+- **Live Batch History & Audit Log Integration**: Updated `BatchHistory.jsx` and `AuditLog.jsx` to render real-time execution batches and audit trails directly from the edge KV stream using `batchService.js` and `auditService.js`. Added instant search and date-range filtering across active audit logs and batches without triggering full view re-renders.
+- **Tactical Queue Priority Trigger**: Added a "Promote to Top / Run Immediate" action button to items in `QueueManager.jsx`. Triggers immediate payload dispatch to `/api/onyx-trigger` with visual toast feedback and explicit button spinner states. Added visual "HIGH PRIORITY" badge support.
+
 ## [2.3.0]
 ### Added
 - **Health Monitor Live Data Binding**: Wired `HealthMonitor.jsx` metrics directly to the incoming telemetry stream data. Added real-time average latency calculations and visual fallback indicators during initial handshakes.
