@@ -10,16 +10,21 @@ export default function DataExplorer() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    loadData(true);
+    const intervalId = setInterval(() => loadData(false), 30000); // Background poll
+    return () => clearInterval(intervalId);
+  }, []);
 
-  const loadData = async () => {
+  const loadData = async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     try {
       const records = await dataService.getAll();
       setData(records);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
