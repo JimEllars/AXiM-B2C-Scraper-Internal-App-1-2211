@@ -10,7 +10,14 @@ export default function StatCard({ title, value, icon, trend, positive }) {
     >
       <div>
         <p className="text-gray-400 text-sm font-medium mb-1">{title}</p>
-        <h3 className="text-2xl font-bold tracking-tight text-white">{value}</h3>
+        <motion.h3
+          key={value}
+          initial={{ opacity: 0.5, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-2xl font-bold tracking-tight text-white"
+        >
+          {value}
+        </motion.h3>
         {trend && (
           <p className={`text-xs mt-2 font-medium ${positive ? 'text-emerald-400' : 'text-rose-400'}`}>
             {trend}

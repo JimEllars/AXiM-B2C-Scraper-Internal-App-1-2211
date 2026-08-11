@@ -85,11 +85,13 @@ export class Egress {
 
     const maxRetries = 3;
     let attempt = 0;
+    const baseDelay = 1000;
 
     while (attempt < maxRetries) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        // Set timeout to 10s max for circuit breaker
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         const response = await fetch(this.env.ENRICHMENT_BRIDGE_URL, {
           method: "POST",
@@ -106,25 +108,30 @@ export class Egress {
 
         if (response.status === 429 || response.status >= 500) {
           const telemetry = new Telemetry(this.env);
-          await telemetry.report("EGRESS_HTTP_ERROR", "WARN", "egress_bridge", `Egress failed with status ${response.status}, retrying... (Attempt ${attempt + 1})`);
-          const jitter = Math.floor(Math.random() * 1000);
-          const delay = (Math.pow(2, attempt) * 1000) + jitter;
+          await telemetry.report("EGRESS_HTTP_ERROR", "WARN", "egress_bridge", `Egress network error ${response.status} (Attempt ${attempt + 1}/${maxRetries})`);
+
+          // Exponential backoff with jitter
+          const jitter = Math.floor(Math.random() * 500);
+          const delay = (baseDelay * Math.pow(2, attempt)) + jitter;
           await new Promise(resolve => setTimeout(resolve, delay));
           attempt++;
           continue;
         }
 
-        return response.status === 202; // Bridge Acknowledgment
+        return response.status === 202 || response.status === 200;
       } catch (e) {
         attempt++;
         if (attempt >= maxRetries) {
           const telemetry = new Telemetry(this.env);
-          await telemetry.report("EGRESS_CRITICAL_FAILURE", "HIGH", "egress_bridge", `Critical Egress Failure after ${maxRetries} attempts: ${e.message}`);
-          console.error(`Critical Egress Failure after ${maxRetries} attempts:`, e);
-          throw e;
+          // Only report error, do not throw. This prevents freezing the queue/orchestrator loop
+          // and dropping active sessions for the UI.
+          await telemetry.report("EGRESS_CIRCUIT_OPEN", "HIGH", "egress_bridge", `Circuit Breaker Open after ${maxRetries} failed attempts: ${e.message}`);
+          return false;
         }
-        const jitter = Math.floor(Math.random() * 1000);
-        const delay = (Math.pow(2, attempt) * 1000) + jitter;
+        const telemetry = new Telemetry(this.env);
+        await telemetry.report("EGRESS_TIMEOUT_RETRY", "WARN", "egress_bridge", `Egress network timeout (Attempt ${attempt}/${maxRetries})`);
+        const jitter = Math.floor(Math.random() * 500);
+        const delay = (baseDelay * Math.pow(2, attempt)) + jitter;
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }

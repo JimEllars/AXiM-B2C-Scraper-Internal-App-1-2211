@@ -20,7 +20,8 @@ export default function HealthMonitor() {
           status: data.status === 'ONLINE' ? 'Healthy' : 'Degraded',
           latency: `${latency}ms`,
           load: data.load || 'Unknown',
-          configured: data.configured || false
+          configured: data.configured || false,
+          kvStatus: data.kvStatus || 'OFFLINE'
         });
         setLastHeartbeat(new Date(data.timestamp || Date.now()).toLocaleTimeString());
       } catch (error) {
@@ -42,7 +43,7 @@ export default function HealthMonitor() {
 
   const nodes = [
     { name: 'Edge Worker Node', status: workerHealth.status, latency: workerHealth.latency, load: workerHealth.load },
-    { name: 'Cloudflare KV Ledger', status: workerHealth.status === 'Offline' ? 'Offline' : 'Healthy', latency: workerHealth.status === 'Offline' ? 'N/A' : `${Math.floor(parseInt(workerHealth.latency) * 0.2) + 12}ms`, usage: workerHealth.status === 'Offline' ? 'N/A' : '0.4GB' },
+    { name: 'Cloudflare KV Ledger', status: workerHealth.kvStatus === 'ONLINE' ? 'Healthy' : 'Offline', latency: workerHealth.kvStatus === 'ONLINE' ? `${Math.floor(parseInt(workerHealth.latency) * 0.2) + 12}ms` : 'N/A', usage: workerHealth.kvStatus === 'ONLINE' ? '0.4GB' : 'N/A' },
     { name: 'CRM Enrichment Bridge', status: workerHealth.status === 'Offline' ? 'Offline' : 'Connected', latency: workerHealth.status === 'Offline' ? 'N/A' : `${Math.floor(parseInt(workerHealth.latency) * 1.5) + 85}ms`, uptime: workerHealth.status === 'Offline' ? 'N/A' : '99.9%' },
     { name: 'Onyx Mk3 Swarm', status: workerHealth.configured ? 'Ready' : (workerHealth.status === 'Offline' ? 'Offline' : 'Standby'), latency: workerHealth.status === 'Offline' ? 'N/A' : '<50ms', mode: 'Autonomous' },
   ];

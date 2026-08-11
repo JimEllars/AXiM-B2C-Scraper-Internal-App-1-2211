@@ -8,13 +8,14 @@ const headers = {
 
 export const dataService = {
   normalizePayload(raw) {
+    // Standardize to strictly pass payloads to the central AXiM Core API without redundant schema conversions
     return {
-      first_name: raw.Name?.split(' ')[0] || raw.first_name || '',
-      last_name: raw.Name?.split(' ').slice(1).join(' ') || raw.last_name || '',
-      email: raw.Email || raw.email || '',
-      phone: raw.Phone || raw.phone || '',
-      address: raw.Address || raw.address || '',
-      origin_url: raw.Source || raw.origin_url || ''
+      first_name: raw.first_name || raw.Name?.split(' ')[0] || '',
+      last_name: raw.last_name || raw.Name?.split(' ').slice(1).join(' ') || '',
+      email: raw.email || raw.Email || '',
+      phone: raw.phone || raw.Phone || '',
+      address: raw.address || raw.Address || '',
+      origin_url: raw.origin_url || raw.Source || ''
     };
   },
 

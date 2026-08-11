@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-const WORKER_URL = (import.meta.env.VITE_WORKER_URL || 'http://localhost:8787') + '/api/telemetry';
+const WORKER_BASE = import.meta.env.VITE_WORKER_URL || 'http://localhost:8787';
+const WORKER_URL = WORKER_BASE + '/api/telemetry/stream';
+const WORKER_POST_URL = WORKER_BASE + '/api/telemetry';
 const TOKEN = import.meta.env.VITE_DASHBOARD_ACCESS_TOKEN;
 
 const headers = {
@@ -53,7 +55,7 @@ export const telemetryService = {
 
 
     try {
-      const res = await fetch(WORKER_URL, {
+      const res = await fetch(WORKER_POST_URL, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
