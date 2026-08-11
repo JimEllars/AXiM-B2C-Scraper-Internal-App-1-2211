@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0]
+### Added
+- **Health Monitor Live Data Binding**: Wired `HealthMonitor.jsx` metrics directly to the incoming telemetry stream data. Added real-time average latency calculations and visual fallback indicators during initial handshakes.
+- **Active Cognitive LLM Parser Execution**: Fully connected `cognitiveExtractWithOnyx(rawBlob)` into the primary scraping execution pipeline in `worker/src/services/scraperApi.js`. Output payloads strictly normalized to `{ first_name, last_name, phone, email, type: 'B2C_CONSUMER' }`.
+- **Telemetry Stream State Preservation**: User-selected log level filters, auto-scroll locks, and pause states now persist across tab navigation using `sessionStorage`. Buffer limits increased to 1,000 entries for `TelemetryStream.jsx` to handle larger stream volumes.
+
+
 ## [2.2.0]
 ### Added
 - **Health Monitor Live Data Binding**: Wired `HealthMonitor.jsx` metrics directly to the incoming telemetry stream data. Added real-time average latency calculations and visual fallback indicators during initial handshakes.

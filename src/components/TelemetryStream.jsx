@@ -8,12 +8,29 @@ import { telemetryService } from '../services/telemetryService';
 export default function TelemetryStream() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isPaused, setIsPaused] = useState(false);
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [isPaused, setIsPaused] = useState(() => sessionStorage.getItem('ts_isPaused') === 'true');
+  const [autoScroll, setAutoScroll] = useState(() => sessionStorage.getItem('ts_autoScroll') !== 'false');
   const [connectionState, setConnectionState] = useState('CONNECTING');
 
-  const [filterLevel, setFilterLevel] = useState('ALL');
-  const [filterSource, setFilterSource] = useState('ALL');
+  const [filterLevel, setFilterLevel] = useState(() => sessionStorage.getItem('ts_filterLevel') || 'ALL');
+  const [filterSource, setFilterSource] = useState(() => sessionStorage.getItem('ts_filterSource') || 'ALL');
+
+
+  useEffect(() => {
+    sessionStorage.setItem('ts_isPaused', isPaused);
+  }, [isPaused]);
+
+  useEffect(() => {
+    sessionStorage.setItem('ts_autoScroll', autoScroll);
+  }, [autoScroll]);
+
+  useEffect(() => {
+    sessionStorage.setItem('ts_filterLevel', filterLevel);
+  }, [filterLevel]);
+
+  useEffect(() => {
+    sessionStorage.setItem('ts_filterSource', filterSource);
+  }, [filterSource]);
 
   const subscriptionRef = useRef(null);
   const endOfStreamRef = useRef(null);
@@ -27,7 +44,7 @@ export default function TelemetryStream() {
           // Prevent duplicates by ID just in case
           if (prevLogs.some(l => l.id === newLog.id)) return prevLogs;
           const updatedLogs = [...prevLogs, newLog];
-          return updatedLogs.sort((a, b) => new Date(a.timestamp || a.time || a.created_at) - new Date(b.timestamp || b.time || b.created_at)).slice(-500);
+          return updatedLogs.sort((a, b) => new Date(a.timestamp || a.time || a.created_at) - new Date(b.timestamp || b.time || b.created_at)).slice(-1000);
         });
       }, (state) => {
           setConnectionState(state);
@@ -53,7 +70,7 @@ export default function TelemetryStream() {
     if (showLoading) setLoading(true);
     try {
       const data = await telemetryService.getAll();
-      const sortedAndCapped = data.sort((a, b) => new Date(a.timestamp || a.time) - new Date(b.timestamp || b.time)).slice(-500);
+      const sortedAndCapped = data.sort((a, b) => new Date(a.timestamp || a.time) - new Date(b.timestamp || b.time)).slice(-1000);
       setLogs(sortedAndCapped);
     } catch (err) {
       console.error('Failed to load telemetry', err);
