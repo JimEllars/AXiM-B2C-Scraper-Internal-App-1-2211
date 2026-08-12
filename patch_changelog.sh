@@ -1,3 +1,5 @@
+#!/bin/bash
+cat << 'INNER_EOF' > CHANGELOG.md
 # Changelog
 
 ## [2.5.0]
@@ -57,3 +59,4 @@
 - Attached the standardized system identification header `X-AXiM-Source: AXiM-B2C-Scraper` to egress utility transmissions.
 - Standardized frontend payload logging fields: `timestamp`, `level`, `module`, `message`, `traceId`.
 - Health Monitor component now uses relative latency interpolation calculated off the live check pings.
+INNER_EOF

@@ -1,3 +1,5 @@
+#!/bin/bash
+cat << 'INNER_EOF' > src/components/ProxyManager.jsx
 import React, { useState, useEffect } from 'react';
 import SafeIcon from '../common/SafeIcon';
 import { FiServer, FiActivity, FiShield, FiRefreshCw, FiLoader, FiZap, FiPlus, FiX } from 'react-icons/fi';
@@ -57,7 +59,7 @@ export default function ProxyManager() {
           <h2 className="text-xl font-bold text-white">Proxy Orchestration</h2>
           <p className="text-sm text-gray-400">Manage residential IP rotators and Anti-Bot health.</p>
         </div>
-        <button 
+        <button
           onClick={loadProxies}
           className="flex items-center space-x-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-xs font-bold text-indigo-400 hover:border-indigo-500 transition-all"
         >
@@ -72,14 +74,14 @@ export default function ProxyManager() {
             <div className={`absolute top-0 right-0 w-24 h-24 rounded-full -mr-12 -mt-12 transition-colors ${
               proxy.status === 'TestingHandshake' ? 'bg-amber-500/5 group-hover:bg-amber-500/10' : 'bg-indigo-500/5 group-hover:bg-indigo-500/10'
             }`} />
-            
+
             <div className="flex items-center justify-between mb-6 relative">
               <div className="p-2 rounded-lg bg-gray-950 border border-gray-800">
                 <SafeIcon icon={FiServer} className={`${proxy.status === 'TestingHandshake' ? 'text-amber-400' : 'text-indigo-400'} w-5 h-5`} />
               </div>
               <span className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase tracking-tighter ${
-                proxy.status === 'Active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
-                proxy.status === 'TestingHandshake' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 
+                proxy.status === 'Active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                proxy.status === 'TestingHandshake' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                 'bg-rose-500/10 text-rose-400 border-rose-900/20'
               }`}>
                 {proxy.status}
@@ -100,11 +102,11 @@ export default function ProxyManager() {
                   {proxy.successRate}
                 </span>
               </div>
-              
+
               <div className="w-full bg-gray-950 h-1 rounded-full overflow-hidden mt-4">
-                <div 
-                  className={`${proxy.status === 'TestingHandshake' ? 'bg-amber-500 w-1/4 animate-pulse' : 'bg-indigo-500'} h-full transition-all duration-1000`} 
-                  style={{ width: proxy.status === 'TestingHandshake' ? undefined : proxy.successRate }} 
+                <div
+                  className={`${proxy.status === 'TestingHandshake' ? 'bg-amber-500 w-1/4 animate-pulse' : 'bg-indigo-500'} h-full transition-all duration-1000`}
+                  style={{ width: proxy.status === 'TestingHandshake' ? undefined : proxy.successRate }}
                 />
               </div>
             </div>
@@ -116,7 +118,7 @@ export default function ProxyManager() {
         ))}
 
         {!showAddForm ? (
-          <button 
+          <button
             onClick={() => setShowAddForm(true)}
             className="glass-panel p-6 border-dashed border-gray-700 flex flex-col items-center justify-center space-y-3 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all text-gray-500 hover:text-indigo-400 group min-h-[280px]"
           >
@@ -127,20 +129,20 @@ export default function ProxyManager() {
           </button>
         ) : (
           <form onSubmit={handleAddProxy} className="glass-panel p-6 border border-indigo-500/30 bg-indigo-500/5 relative min-h-[280px] flex flex-col">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setShowAddForm(false)}
               className="absolute top-4 right-4 text-gray-500 hover:text-white"
             >
               <SafeIcon icon={FiX} />
             </button>
             <h3 className="text-sm font-bold text-indigo-400 uppercase tracking-widest mb-6">New Provider Link</h3>
-            
+
             <div className="space-y-4 flex-1">
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase mb-2">Provider ID / Name</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   required
                   value={newProxy.provider}
                   onChange={e => setNewProxy({...newProxy, provider: e.target.value})}
@@ -150,7 +152,7 @@ export default function ProxyManager() {
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase mb-2">Geographic Region</label>
-                <select 
+                <select
                   value={newProxy.region}
                   onChange={e => setNewProxy({...newProxy, region: e.target.value})}
                   className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-300 focus:border-indigo-500 outline-none"
@@ -163,9 +165,9 @@ export default function ProxyManager() {
               </div>
             </div>
 
-            <button 
+            <button
               disabled={adding}
-              type="submit" 
+              type="submit"
               className="w-full mt-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest transition-all flex justify-center items-center space-x-2"
             >
               {adding ? <SafeIcon icon={FiLoader} className="animate-spin" /> : <SafeIcon icon={FiZap} />}
@@ -177,3 +179,4 @@ export default function ProxyManager() {
     </div>
   );
 }
+INNER_EOF

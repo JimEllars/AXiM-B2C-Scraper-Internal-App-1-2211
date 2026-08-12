@@ -409,6 +409,106 @@ export default {
       }
     }
 
+    // Generic CRUD Handler for KV Entities
+    const kvRoutes = [
+      { path: "/api/data", key: "EXTRACTED_DATA", default: [] },
+      { path: "/api/enrichment", key: "ENRICHMENT_LOGS", default: [] },
+      { path: "/api/proxies", key: "PROXY_POOLS", default: [] },
+      { path: "/api/settings", key: "NODE_SETTINGS", default: {} }
+    ];
+
+    const matchRoute = kvRoutes.find(r => url.pathname === r.path);
+    if (matchRoute) {
+      const authHeader = request.headers.get("Authorization");
+      if (authHeader !== `Bearer ${env.DASHBOARD_ACCESS_TOKEN}`) {
+        return new Response(JSON.stringify({ error: "Unauthorized Node Access" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin }
+        });
+      }
+
+      const kv = env.B2C_SCRAPER_STATE;
+      if (!kv) {
+         return new Response(JSON.stringify({ error: "KV not configured" }), { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin } });
+      }
+
+      if (request.method === "GET") {
+         let data = matchRoute.default;
+         try {
+             const dataStr = await kv.get(matchRoute.key);
+             if (dataStr) data = JSON.parse(dataStr);
+         } catch(e) { /* empty */ }
+         return new Response(JSON.stringify(data), {
+           status: 200,
+           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin }
+         });
+      }
+
+      if (request.method === "POST") {
+         const payload = await request.json();
+         let data = Array.isArray(matchRoute.default) ? [] : {};
+         try {
+             const dataStr = await kv.get(matchRoute.key);
+             if (dataStr) data = JSON.parse(dataStr);
+         } catch(e) { /* empty */ }
+
+         if (Array.isArray(data)) {
+             payload.id = payload.id || crypto.randomUUID();
+             payload.time = payload.time || new Date().toISOString();
+             data.push(payload);
+         } else {
+             data = { ...data, ...payload };
+         }
+
+         await kv.put(matchRoute.key, JSON.stringify(data));
+         return new Response(JSON.stringify({ success: true, id: payload.id }), {
+           status: 201,
+           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin }
+         });
+      }
+
+      if (request.method === "PUT") {
+         const payload = await request.json();
+         let data = Array.isArray(matchRoute.default) ? [] : {};
+         try {
+             const dataStr = await kv.get(matchRoute.key);
+             if (dataStr) data = JSON.parse(dataStr);
+         } catch(e) { /* empty */ }
+
+         if (Array.isArray(data)) {
+             // PUT for array currently just acts as an append or update-by-id if needed,
+             // assuming payload is a full object replacement for an item
+             if (payload.id) {
+                 const idx = data.findIndex(i => i.id === payload.id);
+                 if (idx >= 0) data[idx] = { ...data[idx], ...payload };
+                 else data.push(payload);
+             }
+         } else {
+             // For objects, PUT will update key-value pairs
+             if (payload.key) {
+                 data[payload.key] = payload.value;
+             } else {
+                 data = { ...data, ...payload };
+             }
+         }
+
+         await kv.put(matchRoute.key, JSON.stringify(data));
+         return new Response(JSON.stringify({ success: true }), {
+           status: 200,
+           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin }
+         });
+      }
+
+      if (request.method === "DELETE") {
+         // Basic delete, clears all or specific if handled
+         await kv.delete(matchRoute.key);
+         return new Response(JSON.stringify({ success: true }), {
+           status: 200,
+           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": corsOrigin }
+         });
+      }
+    }
+
     // 3. KV State Polling Endpoint
     if (url.pathname === "/api/state" && request.method === "GET") {
       const authHeader = request.headers.get("Authorization");

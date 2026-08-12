@@ -8,7 +8,6 @@ const headers = {
 
 export const dataService = {
   normalizePayload(raw) {
-    // Standardize to strictly pass payloads to the central AXiM Core API without redundant schema conversions
     return {
       first_name: raw.first_name || raw.Name?.split(' ')[0] || '',
       last_name: raw.last_name || raw.Name?.split(' ').slice(1).join(' ') || '',
@@ -20,17 +19,27 @@ export const dataService = {
   },
 
   async getAll() {
-    const res = await fetch(WORKER_URL, { headers });
-    if (!res.ok) throw new Error('Failed to fetch data');
-    return res.json();
+    try {
+      const res = await fetch(WORKER_URL, { headers });
+      if (res.status === 404) return [];
+      if (!res.ok) throw new Error('Failed to fetch data');
+      return await res.json();
+    } catch (err) {
+      console.warn("dataService.getAll error", err);
+      return [];
+    }
   },
 
   async ingest(batchId, source, payload) {
-    const res = await fetch(WORKER_URL, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ batchId, source, payload })
-    });
-    if (!res.ok) throw new Error('Failed to ingest data');
+    try {
+      const res = await fetch(WORKER_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ batchId, source, payload })
+      });
+      if (!res.ok) throw new Error('Failed to ingest data');
+    } catch (err) {
+      console.warn("dataService.ingest error", err);
+    }
   }
 };
