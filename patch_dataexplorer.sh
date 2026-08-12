@@ -1,3 +1,5 @@
+#!/bin/bash
+cat << 'INNER_EOF' > src/components/DataExplorer.jsx
 import React, { useState, useEffect } from 'react';
 import { FiDatabase, FiSearch, FiCode, FiDownload, FiLoader, FiX, FiFileText } from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
@@ -33,7 +35,7 @@ export default function DataExplorer() {
     const dataStr = JSON.stringify(item.payload || item, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
     const exportFileDefaultName = `egress_${item.id ? item.id.substring(0,8) : 'data'}.json`;
-    
+
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
@@ -209,3 +211,4 @@ export default function DataExplorer() {
     </div>
   );
 }
+INNER_EOF

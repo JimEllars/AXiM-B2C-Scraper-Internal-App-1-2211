@@ -8,23 +8,47 @@ const headers = {
 
 export const settingsService = {
   async getAll() {
-    const res = await fetch(WORKER_URL, { headers });
-    if (!res.ok) throw new Error('Failed to fetch settings');
-    return res.json();
+    try {
+      const res = await fetch(WORKER_URL, { headers });
+      if (res.status === 404) return {};
+      if (!res.ok) throw new Error('Failed to fetch settings');
+      return await res.json();
+    } catch (err) {
+      console.warn("settingsService.getAll error", err);
+      return {};
+    }
   },
 
   async update(key, value) {
-    const res = await fetch(WORKER_URL, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({ key, value })
-    });
-    if (!res.ok) throw new Error('Failed to update setting');
+    try {
+      const res = await fetch(WORKER_URL, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ key, value })
+      });
+      if (!res.ok) throw new Error('Failed to update setting');
+    } catch (err) {
+      console.warn("settingsService.update error", err);
+      throw err;
+    }
   },
 
   async updateBatch(settings) {
-    for (const [key, value] of Object.entries(settings)) {
-      await this.update(key, value);
+    try {
+      const res = await fetch(WORKER_URL, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(settings)
+      });
+      if (!res.ok) {
+        // Fallback to individual updates if batch PUT fails
+        for (const [key, value] of Object.entries(settings)) {
+          await this.update(key, value);
+        }
+      }
+    } catch (err) {
+      console.warn("settingsService.updateBatch error", err);
+      throw err;
     }
   }
 };

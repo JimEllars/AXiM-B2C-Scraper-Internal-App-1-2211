@@ -8,17 +8,27 @@ const headers = {
 
 export const enrichmentService = {
   async getAll() {
-    const res = await fetch(WORKER_URL, { headers });
-    if (!res.ok) throw new Error('Failed to fetch enrichment logs');
-    return res.json();
+    try {
+      const res = await fetch(WORKER_URL, { headers });
+      if (res.status === 404) return [];
+      if (!res.ok) throw new Error('Failed to fetch enrichment logs');
+      return await res.json();
+    } catch (err) {
+      console.warn("enrichmentService.getAll error", err);
+      return [];
+    }
   },
 
   async logEnrichment(leadId, domain, fields, score) {
-    const res = await fetch(WORKER_URL, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ leadId, domain, fields, score })
-    });
-    if (!res.ok) throw new Error('Failed to log enrichment event');
+    try {
+      const res = await fetch(WORKER_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ leadId, domain, fields, score })
+      });
+      if (!res.ok) throw new Error('Failed to log enrichment event');
+    } catch (err) {
+      console.warn("enrichmentService.logEnrichment error", err);
+    }
   }
 };
